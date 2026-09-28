@@ -6,4 +6,6 @@ WORKDIR /app
 COPY src/reader.sh /app/reader.sh
 RUN chmod +x /app/reader.sh
 
-CMD ["/app/reader.sh"]
+# Invoke through bash so development bind mounts do not depend on the host
+# executable bit of reader.sh.
+CMD ["bash", "/app/reader.sh"]
