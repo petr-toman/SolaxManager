@@ -48,6 +48,20 @@ while true; do
             if (x // 0) >= 32768 then (x // 0) - 65536 else (x // 0) end;
           def u32(hi; lo):
             ((hi // 0) * 65536) + (lo // 0);
+          def inverter_state(mode):
+            {
+              "0": "Waiting",
+              "1": "Checking",
+              "2": "Normal",
+              "3": "Fault",
+              "4": "Permanent Fault",
+              "5": "Upgrading",
+              "6": "EPS Checking/Waiting",
+              "7": "EPS",
+              "8": "Self Testing",
+              "9": "Idle",
+              "10": "Standby"
+            }[(mode | tostring)] // ("Unknown(" + (mode | tostring) + ")");
 
           {
             serial_number:               (.sn // null),
@@ -70,12 +84,14 @@ while true; do
             battery_soc_pct:             (.Data[103] // 0),
             battery_charge_today_kwh:   ((.Data[79] // 0) / 10),
             battery_discharge_today_kwh:((.Data[78] // 0) / 10),
-            battery_stored_energy_kwh:        ((.Data[106] // 0) / 10),
-            battery_temp_c:              (.Data[105] // 0),
+            battery_stored_energy_kwh:  ((.Data[106] // 0) / 10),
+            battery_temp_c:              s16(.Data[105] // 0),
+            battery_voltage_v:           (u32(.Data[170] // 0; .Data[169] // 0) / 100),
 
             inverter_power_w:            s16(.Data[9] // 0),
             inverter_temp_c:             (.Data[54] // 0),
             inverter_mode:               (.Data[19] // 0),
+            inverter_state:              inverter_state(.Data[19] // 0),
 
             grid_l1_power_w:             s16(.Data[6] // 0),
             grid_l2_power_w:             s16(.Data[7] // 0),
@@ -106,8 +122,8 @@ while true; do
         production_dc_today_kwh yield_ac_today_kwh \
         grid_power_w grid_import_today_kwh grid_export_today_kwh \
         house_power_w \
-        battery_power_w battery_soc_pct battery_charge_today_kwh battery_discharge_today_kwh battery_stored_energy_kwh battery_temp_c \
-        inverter_power_w inverter_temp_c inverter_mode \
+        battery_power_w battery_soc_pct battery_charge_today_kwh battery_discharge_today_kwh battery_stored_energy_kwh battery_temp_c battery_voltage_v \
+        inverter_power_w inverter_temp_c inverter_mode inverter_state \
         grid_l1_power_w grid_l2_power_w grid_l3_power_w \
         pv1_voltage_v pv2_voltage_v pv1_current_a pv2_current_a \
         grid_l1_voltage_v grid_l2_voltage_v grid_l3_voltage_v \
@@ -122,8 +138,8 @@ while true; do
               .grid_power_w, .grid_import_today_kwh, .grid_export_today_kwh,
               .house_power_w,
               .battery_power_w, .battery_soc_pct, .battery_charge_today_kwh,
-              .battery_discharge_today_kwh, .battery_stored_energy_kwh, .battery_temp_c,
-              .inverter_power_w, .inverter_temp_c, .inverter_mode,
+              .battery_discharge_today_kwh, .battery_stored_energy_kwh, .battery_temp_c, .battery_voltage_v,
+              .inverter_power_w, .inverter_temp_c, .inverter_mode, .inverter_state,
               .grid_l1_power_w, .grid_l2_power_w, .grid_l3_power_w,
               .pv1_voltage_v, .pv2_voltage_v, .pv1_current_a, .pv2_current_a,
               .grid_l1_voltage_v, .grid_l2_voltage_v, .grid_l3_voltage_v,
@@ -157,9 +173,11 @@ while true; do
         -v battery_discharge_today_kwh="$battery_discharge_today_kwh" \
         -v battery_stored_energy_kwh="$battery_stored_energy_kwh" \
         -v battery_temp_c="$battery_temp_c" \
+        -v battery_voltage_v="$battery_voltage_v" \
         -v inverter_power_w="$inverter_power_w" \
         -v inverter_temp_c="$inverter_temp_c" \
         -v inverter_mode="$inverter_mode" \
+        -v inverter_state="$inverter_state" \
         -v grid_l1_power_w="$grid_l1_power_w" \
         -v grid_l2_power_w="$grid_l2_power_w" \
         -v grid_l3_power_w="$grid_l3_power_w" \
@@ -186,8 +204,8 @@ INSERT INTO solax_raw (
   house_power_w,
   battery_power_w, battery_soc_pct,
   battery_charge_today_kwh, battery_discharge_today_kwh,
-  battery_stored_energy_kwh, battery_temp_c,
-  inverter_power_w, inverter_temp_c, inverter_mode,
+  battery_stored_energy_kwh, battery_temp_c, battery_voltage_v,
+  inverter_power_w, inverter_temp_c, inverter_mode, inverter_state,
   grid_l1_power_w, grid_l2_power_w, grid_l3_power_w,
   pv1_voltage_v, pv2_voltage_v, pv1_current_a, pv2_current_a,
   grid_l1_voltage_v, grid_l2_voltage_v, grid_l3_voltage_v,
@@ -212,9 +230,11 @@ INSERT INTO solax_raw (
   NULLIF(:'battery_discharge_today_kwh','')::double precision,
   NULLIF(:'battery_stored_energy_kwh','')::double precision,
   NULLIF(:'battery_temp_c','')::double precision,
+  NULLIF(:'battery_voltage_v','')::double precision,
   NULLIF(:'inverter_power_w','')::double precision,
   NULLIF(:'inverter_temp_c','')::double precision,
   NULLIF(:'inverter_mode','')::integer,
+  NULLIF(:'inverter_state',''),
   NULLIF(:'grid_l1_power_w','')::double precision,
   NULLIF(:'grid_l2_power_w','')::double precision,
   NULLIF(:'grid_l3_power_w','')::double precision,
@@ -235,7 +255,7 @@ INSERT INTO solax_raw (
 );
 SQL
       then
-        log "stored serial=${serial_number:-?} pv=${pv_total_power_w:-?}W load=${house_power_w:-?}W grid=${grid_power_w:-?}W battery=${battery_power_w:-?}W soc=${battery_soc_pct:-?}%"
+        log "stored serial=${serial_number:-?} pv=${pv_total_power_w:-?}W load=${house_power_w:-?}W grid=${grid_power_w:-?}W battery=${battery_power_w:-?}W soc=${battery_soc_pct:-?}% state=${inverter_state:-?}"
       else
         log "database insert failed"
       fi
