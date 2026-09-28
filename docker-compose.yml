@@ -1,0 +1,84 @@
+services:
+  datastore:
+    build:
+      context: ./datastore
+    container_name: solaxmanager-datastore
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-solaxmanager}
+      POSTGRES_USER: ${POSTGRES_USER:-solax}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-solax_dev_only}
+    volumes:
+      - solaxmanager_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-solax} -d ${POSTGRES_DB:-solaxmanager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  solax_reader:
+    build:
+      context: ./solax_reader
+    container_name: solaxmanager-solax-reader
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
+      SOLAX_URL: ${SOLAX_URL:-http://192.168.1.20}
+      SOLAX_PASSWORD: ${SOLAX_PASSWORD:-}
+      POLL_INTERVAL_SECONDS: ${SOLAX_POLL_INTERVAL_SECONDS:-5}
+    depends_on:
+      datastore:
+        condition: service_healthy
+    restart: unless-stopped
+
+  azrouter_reader:
+    build:
+      context: ./azrouter_reader
+    container_name: solaxmanager-azrouter-reader
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
+      AZROUTER_URL: ${AZROUTER_URL:-}
+      POLL_INTERVAL_SECONDS: ${AZROUTER_POLL_INTERVAL_SECONDS:-5}
+    depends_on:
+      datastore:
+        condition: service_healthy
+    restart: unless-stopped
+
+  reporter:
+    build:
+      context: ./reporter
+    container_name: solaxmanager-reporter
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
+      REPORT_INTERVAL_SECONDS: ${REPORT_INTERVAL_SECONDS:-60}
+      RAW_RETENTION_DAYS: ${RAW_RETENTION_DAYS:-30}
+    depends_on:
+      datastore:
+        condition: service_healthy
+    restart: unless-stopped
+
+  controller:
+    build:
+      context: ./controller
+    container_name: solaxmanager-controller
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
+      SOLAX_URL: ${SOLAX_URL:-http://192.168.1.20}
+      SOLAX_PASSWORD: ${SOLAX_PASSWORD:-}
+      CONTROLLER_MODE: ${CONTROLLER_MODE:-dry-run}
+    depends_on:
+      datastore:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ./ui
+    container_name: solaxmanager-ui
+    ports:
+      - "${UI_PORT:-8088}:80"
+    depends_on:
+      - datastore
+    restart: unless-stopped
+
+volumes:
+  solaxmanager_pgdata:
