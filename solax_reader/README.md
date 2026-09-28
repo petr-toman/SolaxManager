@@ -50,14 +50,14 @@ import/export and charge/discharge energy.
 | `production_dc_today_kwh` | `Data[82] / 10` | kWh |
 | `yield_ac_today_kwh` | `Data[70] / 10` | kWh |
 | `grid_power_w` | signed `Data[34]` | W |
-| `grid_import_total_kwh` | `Data[93:92] / 100` | kWh |
-| `grid_export_total_kwh` | `Data[91:90] / 100` | kWh |
+| `grid_import_today_kwh` | `Data[93:92] / 100` | kWh |
+| `grid_export_today_kwh` | `Data[91:90] / 100` | kWh |
 | `house_power_w` | signed `Data[47]` | W |
 | `battery_power_w` | signed `Data[41]` | W |
 | `battery_soc_pct` | `Data[103]` | % |
-| `battery_charged_total_kwh` | `Data[79] / 10` | kWh |
-| `battery_discharged_total_kwh` | `Data[78] / 10` | kWh |
-| `battery_capacity_kwh` | `Data[106] / 10` | kWh |
+| `battery_charge_today_kwh` | `Data[79] / 10` | kWh |
+| `battery_discharge_today_kwh` | `Data[78] / 10` | kWh |
+| `battery_stored_energy_kwh` | `Data[106] / 10` | kWh |
 | `battery_temp_c` | `Data[105]` | °C |
 | `inverter_power_w` | signed `Data[9]` | W |
 | `inverter_temp_c` | `Data[54]` | °C |
