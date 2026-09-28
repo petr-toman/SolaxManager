@@ -86,16 +86,47 @@ Production target: Raspberry Pi with Docker Compose.
 
 Development target: macOS / Docker Desktop.
 
-Start the stack:
+Configuration is loaded from a local `.env` file. Start by copying the template:
 
 ```bash
-docker compose up --build
+cp .env.example .env
 ```
 
-Stop it:
+Never commit real device or database credentials.
+
+The project provides a Makefile for the common Docker workflows:
 
 ```bash
-docker compose down
+make help
+make dev
+make prod
+make up
+make down
+make logs
+make logs-solax
+make logs-controller
+make ps
+make db
 ```
+
+Development uses the base Compose file plus `docker-compose.dev.yml`. Source directories are bind-mounted where practical, PostgreSQL is exposed to the development host, and the controller is forced into `dry-run` mode.
+
+Production uses the base Compose file plus `docker-compose.prod.yml`. Source code is taken from built images, PostgreSQL remains internal to the Docker network, and the controller still defaults to `dry-run` until it is explicitly enabled.
+
+Clean rebuilds are available through:
+
+```bash
+make rebuild
+make rebuild-dev
+make rebuild-prod
+```
+
+A destructive reset of persistent Docker data is deliberately explicit:
+
+```bash
+make initialize
+```
+
+This removes the PostgreSQL volume and recreates the base stack, so it requires interactive confirmation.
 
 The initial scaffold intentionally contains minimal implementations. Hardware access and credentials are supplied through environment variables and must not be committed to the repository.
