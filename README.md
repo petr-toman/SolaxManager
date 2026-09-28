@@ -12,8 +12,7 @@ SolaX inverter ──> solax_reader ──────┐
 AZ Router ──────> azrouter_reader ────┼──> datastore (PostgreSQL)
                                       │
                                       ├──> reporter
-                                      │
-                                      ├──> ui
+                                      ├──> telemetry_api ──> ui
                                       │
                                       └<── controller ──> SolaX / AZ Router
 ```
@@ -24,18 +23,20 @@ AZ Router ──────> azrouter_reader ────┼──> datastore (
 - **azrouter_reader** – reads AZ Router data and stores normalized measurements.
 - **datastore** – PostgreSQL database shared through explicit schemas/tables.
 - **reporter** – calculates energy integrations and time aggregates, and performs retention cleanup.
+- **telemetry_api** – read-only HTTP API over normalized PostgreSQL telemetry. It is the data boundary used by the browser UI.
 - **controller** – reads/writes device configuration and later evaluates configurable automation rules. Starts in **dry-run** mode.
-- **ui** – lightweight web UI. Initially only a status page; statistics and configuration will be added later.
+- **ui** – lightweight realtime status dashboard. It never talks directly to SolaX or PostgreSQL.
 
 ## Design rules
 
 1. Readers only read devices and write measurements.
 2. Reporter only reads measurements and writes derived statistics.
 3. Controller is the only service allowed to change device configuration.
-4. UI never talks directly to SolaX or AZ Router.
-5. Device-specific protocol details stay inside device adapters.
-6. Automation starts in dry-run/shadow mode before any autonomous write operations are enabled.
-7. Raw device payloads may be retained for diagnostics, but business logic uses normalized fields.
+4. UI never talks directly to SolaX, AZ Router or PostgreSQL.
+5. Browser-facing telemetry is served through `telemetry_api`; PostgreSQL remains the single source of truth.
+6. Device-specific protocol details stay inside device adapters.
+7. Automation starts in dry-run/shadow mode before any autonomous write operations are enabled.
+8. Raw device payloads may be retained for diagnostics, but business logic uses normalized fields.
 
 ## Project phases
 
@@ -44,6 +45,11 @@ AZ Router ──────> azrouter_reader ────┼──> datastore (
 - PostgreSQL
 - SolaX local reader
 - normalized raw data storage
+
+### M0.2 – realtime visibility
+- read-only telemetry API
+- current-state browser dashboard
+- stale-data indication
 
 ### M0.5 – controller GO / NO-GO
 - read SolaX configuration
@@ -54,7 +60,7 @@ AZ Router ──────> azrouter_reader ────┼──> datastore (
 - verify work mode / charge controls
 - verify force-charge capability
 
-If M0.5 cannot be implemented reliably on the inverter/firmware, further automation work will be reconsidered before investing in reporting and UI.
+If M0.5 cannot be implemented reliably on the inverter/firmware, further automation work will be reconsidered before investing in advanced reporting and UI.
 
 ### M1 – complete telemetry
 - AZ Router reader
@@ -68,9 +74,9 @@ If M0.5 cannot be implemented reliably on the inverter/firmware, further automat
 - comparison against calibrated distributor meter data
 
 ### M3 – UI
-- current values
 - basic charts and statistics
 - controller state and action log
+- configuration views
 
 ### M4 – rule engine
 - configurable conditions
@@ -111,6 +117,14 @@ make db
 
 Development uses the base Compose file plus `docker-compose.dev.yml`. Source directories are bind-mounted where practical, PostgreSQL is exposed to the development host, and the controller is forced into `dry-run` mode.
 
+The realtime dashboard is available at:
+
+```text
+http://localhost:8088
+```
+
+The browser calls `/api/realtime` on the UI origin; nginx proxies that request internally to `telemetry_api`. The API reads the newest normalized PostgreSQL row, so the UI never needs inverter credentials.
+
 Production uses the base Compose file plus `docker-compose.prod.yml`. Source code is taken from built images, PostgreSQL remains internal to the Docker network, and the controller still defaults to `dry-run` until it is explicitly enabled.
 
 Clean rebuilds are available through:
@@ -128,5 +142,3 @@ make initialize
 ```
 
 This removes the PostgreSQL volume and recreates the base stack, so it requires interactive confirmation.
-
-The initial scaffold intentionally contains minimal implementations. Hardware access and credentials are supplied through environment variables and must not be committed to the repository.
