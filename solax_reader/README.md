@@ -58,10 +58,13 @@ import/export and charge/discharge energy.
 | `battery_charge_today_kwh` | `Data[79] / 10` | kWh |
 | `battery_discharge_today_kwh` | `Data[78] / 10` | kWh |
 | `battery_stored_energy_kwh` | `Data[106] / 10` | kWh |
-| `battery_temp_c` | `Data[105]` | °C |
+| `battery_temp_c` | signed `Data[105]` | °C |
+| `battery_voltage_v` | unsigned 32-bit `Data[170:169] / 100` | V |
+| `battery_current_a` | not mapped for inverter type 14 | A |
 | `inverter_power_w` | signed `Data[9]` | W |
 | `inverter_temp_c` | `Data[54]` | °C |
 | `inverter_mode` | `Data[19]` | enum |
+| `inverter_state` | decoded `Data[19]` | text |
 | phase powers | signed `Data[6..8]` | W |
 | PV voltages | `Data[10..11] / 10` | V |
 | PV currents | `Data[12..13] / 10` | A |
@@ -117,3 +120,28 @@ LIMIT 10;
 
 This container can run independently when supplied with a compatible PostgreSQL
 database and the four configuration variables above.
+
+
+## Inverter state mapping (type 14 / X3-Hybrid G4)
+
+`Data[19]` is retained numerically as `inverter_mode` and decoded to
+`inverter_state`:
+
+```text
+0 Waiting
+1 Checking
+2 Normal
+3 Fault
+4 Permanent Fault
+5 Upgrading
+6 EPS Checking/Waiting
+7 EPS
+8 Self Testing
+9 Idle
+10 Standby
+```
+
+Battery voltage is mapped from the same type-14 local API mapping used by the
+legacy project. No independently documented raw battery-current field has been
+found for type 14, so `battery_current_a` intentionally remains NULL rather
+than storing a derived estimate as if it were a measured value.
