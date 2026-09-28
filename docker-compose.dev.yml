@@ -21,6 +21,12 @@ services:
     volumes:
       - ./reporter/src:/app:ro
 
+  telemetry_api:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./telemetry_api/src:/app:ro
+
   controller:
     environment:
       APP_ENV: development
