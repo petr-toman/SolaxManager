@@ -7,23 +7,22 @@ COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 .PHONY: help up dev prod down rebuild rebuild-dev rebuild-prod logs logs-solax logs-controller ps db initialize
 
 help:
-	@printf '%s\\n' \\
-		'Použití: make <příkaz>' \\
-		'' \\
-		'Dostupné příkazy:' \\
-		'  up            Spustí základní stack' \\
-		'  dev           Spustí development stack' \\
-		'  prod          Spustí production stack' \\
-		'  down          Zastaví kontejnery a odstraní orphan kontejnery' \\
-		'  rebuild       Rebuild základního stacku bez cache' \\
-		'  rebuild-dev   Rebuild development stacku bez cache' \\
-		'  rebuild-prod  Rebuild production stacku bez cache' \\
-		'  logs          Sleduje logy všech služeb' \\
-		'  logs-solax    Sleduje log solax_reader' \\
-		'  logs-controller Sleduje log controlleru' \\
-		'  ps            Zobrazí stav služeb' \\
-		'  db            Otevře psql shell v PostgreSQL' \\
-		'  initialize    DESTRUKTIVNÍ reset včetně PostgreSQL volume'
+	@printf '%s\n' 'Použití: make <příkaz>'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Dostupné příkazy:'
+	@printf '%s\n' '  up              Spustí základní stack'
+	@printf '%s\n' '  dev             Spustí development stack'
+	@printf '%s\n' '  prod            Spustí production stack'
+	@printf '%s\n' '  down            Zastaví kontejnery a odstraní orphan kontejnery'
+	@printf '%s\n' '  rebuild         Rebuild základního stacku bez cache'
+	@printf '%s\n' '  rebuild-dev     Rebuild development stacku bez cache'
+	@printf '%s\n' '  rebuild-prod    Rebuild production stacku bez cache'
+	@printf '%s\n' '  logs            Sleduje logy všech služeb'
+	@printf '%s\n' '  logs-solax      Sleduje log solax_reader'
+	@printf '%s\n' '  logs-controller Sleduje log controlleru'
+	@printf '%s\n' '  ps              Zobrazí stav služeb'
+	@printf '%s\n' '  db              Otevře psql shell v PostgreSQL'
+	@printf '%s\n' '  initialize      DESTRUKTIVNÍ reset včetně PostgreSQL volume'
 
 up:
 	$(COMPOSE_BASE) up -d --build
@@ -35,11 +34,7 @@ prod:
 	$(COMPOSE_PROD) up -d --build
 
 down:
-	docker compose \\
-		-f docker-compose.yml \\
-		-f docker-compose.dev.yml \\
-		-f docker-compose.prod.yml \\
-		down --remove-orphans
+	$(COMPOSE_BASE) down --remove-orphans
 
 rebuild:
 	$(COMPOSE_BASE) down --remove-orphans
@@ -60,16 +55,16 @@ logs:
 	$(COMPOSE_BASE) logs -f --tail=100
 
 logs-solax:
-	$(COMPOSE_DEV) logs -f --tail=100 solax_reader
+	$(COMPOSE_BASE) logs -f --tail=100 solax_reader
 
 logs-controller:
-	$(COMPOSE_DEV) logs -f --tail=100 controller
+	$(COMPOSE_BASE) logs -f --tail=100 controller
 
 ps:
 	$(COMPOSE_BASE) ps
 
 db:
-	$(COMPOSE_DEV) exec datastore sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+	$(COMPOSE_BASE) exec datastore sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
 initialize:
 	@echo "WARNING: this removes PostgreSQL data and all persistent volumes."
@@ -79,6 +74,6 @@ initialize:
 	$(COMPOSE_BASE) up -d
 
 %:
-	@printf "Neznámý příkaz: make %s\\n\\n" "$@"
+	@printf 'Neznámý příkaz: make %s\n\n' "$@"
 	@$(MAKE) --no-print-directory help
 	@exit 2
