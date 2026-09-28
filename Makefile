@@ -1,0 +1,84 @@
+.DEFAULT_GOAL := help
+
+COMPOSE_BASE := docker compose -f docker-compose.yml
+COMPOSE_DEV  := docker compose -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
+
+.PHONY: help up dev prod down rebuild rebuild-dev rebuild-prod logs logs-solax logs-controller ps db initialize
+
+help:
+	@printf '%s\\n' \\
+		'Použití: make <příkaz>' \\
+		'' \\
+		'Dostupné příkazy:' \\
+		'  up            Spustí základní stack' \\
+		'  dev           Spustí development stack' \\
+		'  prod          Spustí production stack' \\
+		'  down          Zastaví kontejnery a odstraní orphan kontejnery' \\
+		'  rebuild       Rebuild základního stacku bez cache' \\
+		'  rebuild-dev   Rebuild development stacku bez cache' \\
+		'  rebuild-prod  Rebuild production stacku bez cache' \\
+		'  logs          Sleduje logy všech služeb' \\
+		'  logs-solax    Sleduje log solax_reader' \\
+		'  logs-controller Sleduje log controlleru' \\
+		'  ps            Zobrazí stav služeb' \\
+		'  db            Otevře psql shell v PostgreSQL' \\
+		'  initialize    DESTRUKTIVNÍ reset včetně PostgreSQL volume'
+
+up:
+	$(COMPOSE_BASE) up -d --build
+
+dev:
+	$(COMPOSE_DEV) up -d --build
+
+prod:
+	$(COMPOSE_PROD) up -d --build
+
+down:
+	docker compose \\
+		-f docker-compose.yml \\
+		-f docker-compose.dev.yml \\
+		-f docker-compose.prod.yml \\
+		down --remove-orphans
+
+rebuild:
+	$(COMPOSE_BASE) down --remove-orphans
+	$(COMPOSE_BASE) build --no-cache
+	$(COMPOSE_BASE) up -d
+
+rebuild-dev:
+	$(COMPOSE_DEV) down --remove-orphans
+	$(COMPOSE_DEV) build --no-cache
+	$(COMPOSE_DEV) up -d
+
+rebuild-prod:
+	$(COMPOSE_PROD) down --remove-orphans
+	$(COMPOSE_PROD) build --no-cache
+	$(COMPOSE_PROD) up -d
+
+logs:
+	$(COMPOSE_BASE) logs -f --tail=100
+
+logs-solax:
+	$(COMPOSE_DEV) logs -f --tail=100 solax_reader
+
+logs-controller:
+	$(COMPOSE_DEV) logs -f --tail=100 controller
+
+ps:
+	$(COMPOSE_BASE) ps
+
+db:
+	$(COMPOSE_DEV) exec datastore sh -lc 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+
+initialize:
+	@echo "WARNING: this removes PostgreSQL data and all persistent volumes."
+	@printf "Continue? [y/N] "; read ans; [ "$$ans" = "y" ]
+	$(COMPOSE_BASE) down -v --remove-orphans
+	$(COMPOSE_BASE) build --no-cache
+	$(COMPOSE_BASE) up -d
+
+%:
+	@printf "Neznámý příkaz: make %s\\n\\n" "$@"
+	@$(MAKE) --no-print-directory help
+	@exit 2
