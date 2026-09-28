@@ -1,21 +1,279 @@
 <!doctype html>
-<html lang="en">
+<html lang="cs">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SolaxManager</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 3rem; max-width: 60rem; }
-    code { background: #eee; padding: .15rem .3rem; }
-    .status { padding: 1rem; border: 1px solid #ccc; border-radius: .5rem; }
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1720;
+      --panel: #17212b;
+      --panel2: #1d2a36;
+      --text: #edf5f7;
+      --muted: #9fb1b9;
+      --good: #4dd7b2;
+      --warn: #f2bd5a;
+      --bad: #ff7d7d;
+      --line: #2c3b47;
+      --accent: #78c8ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    header {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 22px 12px;
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    h1 { margin: 0; font-size: 1.7rem; }
+    #freshness { color: var(--muted); font-size: .95rem; }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 10px 22px 32px;
+    }
+    .banner {
+      display: none;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #4b3131;
+      color: #ffd9d9;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+    .card {
+      grid-column: span 4;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 17px;
+      min-height: 190px;
+    }
+    .card.wide { grid-column: span 6; }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      color: var(--muted);
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    .hero {
+      font-size: 2.1rem;
+      font-weight: 720;
+      margin-bottom: 8px;
+    }
+    .unit { font-size: .55em; color: var(--muted); font-weight: 500; }
+    .rows { display: grid; gap: 7px; }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      border-top: 1px solid rgba(255,255,255,.045);
+      padding-top: 7px;
+    }
+    .row span:first-child { color: var(--muted); }
+    .value { font-variant-numeric: tabular-nums; text-align: right; }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    .phase-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+    .phase-table th, .phase-table td {
+      padding: 6px 7px;
+      border-top: 1px solid rgba(255,255,255,.05);
+      text-align: right;
+    }
+    .phase-table th:first-child, .phase-table td:first-child { text-align: left; }
+    .phase-table th { color: var(--muted); font-weight: 500; }
+    footer {
+      color: var(--muted);
+      margin-top: 18px;
+      font-size: .85rem;
+    }
+    @media (max-width: 850px) {
+      .card, .card.wide { grid-column: span 12; }
+      header { align-items: flex-start; flex-direction: column; }
+    }
   </style>
 </head>
 <body>
-  <h1>SolaxManager</h1>
-  <div class="status">
-    <strong>UI scaffold is running.</strong>
-    <p>Live telemetry will be connected after <code>solax_reader</code> field mapping and persistence are verified.</p>
-    <p>Controller default mode: <code>dry-run</code>.</p>
-  </div>
+  <header>
+    <h1>SolaxManager</h1>
+    <div id="freshness">čekám na data…</div>
+  </header>
+
+  <main>
+    <div id="banner" class="banner"></div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Panely</h2>
+        <div class="hero"><span id="pv-total">—</span> <span class="unit">W</span></div>
+        <div class="rows">
+          <div class="row"><span>String 1</span><span class="value" id="pv1">—</span></div>
+          <div class="row"><span>String 2</span><span class="value" id="pv2">—</span></div>
+          <div class="row"><span>Dnes DC</span><span class="value" id="pv-today">—</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Baterie</h2>
+        <div class="hero"><span id="soc">—</span> <span class="unit">%</span></div>
+        <div class="rows">
+          <div class="row"><span>Výkon</span><span class="value" id="battery-power">—</span></div>
+          <div class="row"><span>Napětí</span><span class="value" id="battery-voltage">—</span></div>
+          <div class="row"><span>Proud</span><span class="value" id="battery-current">—</span></div>
+          <div class="row"><span>Energie</span><span class="value" id="battery-energy">—</span></div>
+          <div class="row"><span>Teplota</span><span class="value" id="battery-temp">—</span></div>
+          <div class="row"><span>Dnes nabito / vybito</span><span class="value" id="battery-today">—</span></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Střídač</h2>
+        <div class="hero" id="inverter-state">—</div>
+        <div class="rows">
+          <div class="row"><span>Výkon</span><span class="value" id="inverter-power">—</span></div>
+          <div class="row"><span>Teplota</span><span class="value" id="inverter-temp">—</span></div>
+          <div class="row"><span>Dnes AC</span><span class="value" id="ac-today">—</span></div>
+          <div class="row"><span>Mode code</span><span class="value" id="inverter-mode">—</span></div>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <h2>Dům a síť</h2>
+        <div class="rows">
+          <div class="row"><span>Aktuální odběr domu</span><span class="value" id="house-power">—</span></div>
+          <div class="row"><span>Síť</span><span class="value" id="grid-power">—</span></div>
+          <div class="row"><span>Dnes import</span><span class="value" id="grid-import">—</span></div>
+          <div class="row"><span>Dnes export</span><span class="value" id="grid-export">—</span></div>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <h2>Fáze sítě</h2>
+        <table class="phase-table">
+          <thead>
+            <tr><th></th><th>V</th><th>A</th><th>W</th><th>Hz</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>L1</td><td id="l1v">—</td><td id="l1a">—</td><td id="l1w">—</td><td id="l1hz">—</td></tr>
+            <tr><td>L2</td><td id="l2v">—</td><td id="l2a">—</td><td id="l2w">—</td><td id="l2hz">—</td></tr>
+            <tr><td>L3</td><td id="l3v">—</td><td id="l3a">—</td><td id="l3w">—</td><td id="l3hz">—</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <footer>
+      <span id="serial">SN —</span> · poslední měření <span id="measured-at">—</span>
+    </footer>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const nf0 = new Intl.NumberFormat('cs-CZ', { maximumFractionDigits: 0 });
+    const nf1 = new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const nf2 = new Intl.NumberFormat('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function n(value, digits = 0, unit = '') {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+      const f = digits === 2 ? nf2 : digits === 1 ? nf1 : nf0;
+      return f.format(Number(value)) + (unit ? ' ' + unit : '');
+    }
+
+    function set(id, text) { $(id).textContent = text; }
+
+    function render(d) {
+      set('pv-total', n(d.pv_total_power_w));
+      set('pv1', n(d.pv1_power_w, 0, 'W'));
+      set('pv2', n(d.pv2_power_w, 0, 'W'));
+      set('pv-today', n(d.production_dc_today_kwh, 1, 'kWh'));
+
+      set('soc', n(d.battery_soc_pct));
+      const bp = Number(d.battery_power_w || 0);
+      const bpEl = $('battery-power');
+      bpEl.textContent = (bp >= 0 ? 'nabíjení ' : 'vybíjení ') + n(Math.abs(bp), 0, 'W');
+      bpEl.className = 'value ' + (bp >= 0 ? 'good' : 'bad');
+      set('battery-voltage', n(d.battery_voltage_v, 2, 'V'));
+      set('battery-current', n(d.battery_current_a, 2, 'A'));
+      set('battery-energy', n(d.battery_stored_energy_kwh, 1, 'kWh'));
+      set('battery-temp', n(d.battery_temp_c, 0, '°C'));
+      set('battery-today', n(d.battery_charge_today_kwh, 1) + ' / ' + n(d.battery_discharge_today_kwh, 1) + ' kWh');
+
+      set('inverter-state', d.inverter_state || '—');
+      set('inverter-power', n(d.inverter_power_w, 0, 'W'));
+      set('inverter-temp', n(d.inverter_temp_c, 0, '°C'));
+      set('ac-today', n(d.yield_ac_today_kwh, 1, 'kWh'));
+      set('inverter-mode', d.inverter_mode ?? '—');
+
+      set('house-power', n(d.house_power_w, 0, 'W'));
+      const gp = Number(d.grid_power_w || 0);
+      const gridEl = $('grid-power');
+      gridEl.textContent = (gp < 0 ? 'odběr ' : 'dodávka ') + n(Math.abs(gp), 0, 'W');
+      gridEl.className = 'value ' + (gp < 0 ? 'bad' : 'good');
+      set('grid-import', n(d.grid_import_today_kwh, 2, 'kWh'));
+      set('grid-export', n(d.grid_export_today_kwh, 2, 'kWh'));
+
+      for (const phase of [1,2,3]) {
+        set('l' + phase + 'v', n(d['grid_l' + phase + '_voltage_v'], 1));
+        set('l' + phase + 'a', n(d['grid_l' + phase + '_current_a'], 1));
+        set('l' + phase + 'w', n(d['grid_l' + phase + '_power_w'], 0));
+        set('l' + phase + 'hz', n(d['grid_frequency_l' + phase + '_hz'], 2));
+      }
+
+      const measured = new Date(d.measured_at);
+      set('serial', 'SN ' + (d.serial_number || '—'));
+      set('measured-at', measured.toLocaleString('cs-CZ'));
+
+      const age = Number(d.sample_age_seconds || 0);
+      const freshness = $('freshness');
+      freshness.textContent = 'data před ' + nf1.format(age) + ' s';
+      freshness.className = d.stale ? 'warn' : 'good';
+
+      const banner = $('banner');
+      if (d.stale) {
+        banner.style.display = 'block';
+        banner.textContent = 'Pozor: poslední vzorek je starý ' + nf1.format(age) + ' s. Reader nebo spojení může být mimo provoz.';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    async function tick() {
+      try {
+        const res = await fetch('/api/realtime', { cache: 'no-store' });
+        const payload = await res.json();
+        if (!res.ok || payload.status !== 'ok') throw new Error(payload.message || 'HTTP ' + res.status);
+        render(payload.data);
+      } catch (err) {
+        const banner = $('banner');
+        banner.style.display = 'block';
+        banner.textContent = 'Realtime data nejsou dostupná: ' + err.message;
+        $('freshness').textContent = 'bez spojení';
+        $('freshness').className = 'bad';
+      }
+    }
+
+    tick();
+    setInterval(tick, 2000);
+  </script>
 </body>
 </html>
