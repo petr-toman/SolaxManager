@@ -1,0 +1,33 @@
+services:
+  datastore:
+    ports:
+      - "${POSTGRES_DEV_PORT:-5432}:5432"
+
+  solax_reader:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./solax_reader/src:/app:ro
+
+  azrouter_reader:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./azrouter_reader/src:/app:ro
+
+  reporter:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./reporter/src:/app:ro
+
+  controller:
+    environment:
+      APP_ENV: development
+      CONTROLLER_MODE: dry-run
+    volumes:
+      - ./controller/src:/app:ro
+
+  ui:
+    volumes:
+      - ./ui/src:/usr/share/nginx/html:ro
