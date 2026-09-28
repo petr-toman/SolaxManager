@@ -61,16 +61,16 @@ while true; do
             yield_ac_today_kwh:          ((.Data[70] // 0) / 10),
 
             grid_power_w:                s16(.Data[34] // 0),
-            grid_import_total_kwh:       (u32(.Data[93] // 0; .Data[92] // 0) / 100),
-            grid_export_total_kwh:       (u32(.Data[91] // 0; .Data[90] // 0) / 100),
+            grid_import_today_kwh:       (u32(.Data[93] // 0; .Data[92] // 0) / 100),
+            grid_export_today_kwh:       (u32(.Data[91] // 0; .Data[90] // 0) / 100),
 
             house_power_w:               s16(.Data[47] // 0),
 
             battery_power_w:             s16(.Data[41] // 0),
             battery_soc_pct:             (.Data[103] // 0),
-            battery_charged_total_kwh:   ((.Data[79] // 0) / 10),
-            battery_discharged_total_kwh:((.Data[78] // 0) / 10),
-            battery_capacity_kwh:        ((.Data[106] // 0) / 10),
+            battery_charge_today_kwh:   ((.Data[79] // 0) / 10),
+            battery_discharge_today_kwh:((.Data[78] // 0) / 10),
+            battery_stored_energy_kwh:        ((.Data[106] // 0) / 10),
             battery_temp_c:              (.Data[105] // 0),
 
             inverter_power_w:            s16(.Data[9] // 0),
@@ -104,9 +104,9 @@ while true; do
         serial_number api_version inverter_type \
         pv1_power_w pv2_power_w pv_total_power_w \
         production_dc_today_kwh yield_ac_today_kwh \
-        grid_power_w grid_import_total_kwh grid_export_total_kwh \
+        grid_power_w grid_import_today_kwh grid_export_today_kwh \
         house_power_w \
-        battery_power_w battery_soc_pct battery_charged_total_kwh battery_discharged_total_kwh battery_capacity_kwh battery_temp_c \
+        battery_power_w battery_soc_pct battery_charge_today_kwh battery_discharge_today_kwh battery_stored_energy_kwh battery_temp_c \
         inverter_power_w inverter_temp_c inverter_mode \
         grid_l1_power_w grid_l2_power_w grid_l3_power_w \
         pv1_voltage_v pv2_voltage_v pv1_current_a pv2_current_a \
@@ -119,10 +119,10 @@ while true; do
               .serial_number, .api_version, .inverter_type,
               .pv1_power_w, .pv2_power_w, .pv_total_power_w,
               .production_dc_today_kwh, .yield_ac_today_kwh,
-              .grid_power_w, .grid_import_total_kwh, .grid_export_total_kwh,
+              .grid_power_w, .grid_import_today_kwh, .grid_export_today_kwh,
               .house_power_w,
-              .battery_power_w, .battery_soc_pct, .battery_charged_total_kwh,
-              .battery_discharged_total_kwh, .battery_capacity_kwh, .battery_temp_c,
+              .battery_power_w, .battery_soc_pct, .battery_charge_today_kwh,
+              .battery_discharge_today_kwh, .battery_stored_energy_kwh, .battery_temp_c,
               .inverter_power_w, .inverter_temp_c, .inverter_mode,
               .grid_l1_power_w, .grid_l2_power_w, .grid_l3_power_w,
               .pv1_voltage_v, .pv2_voltage_v, .pv1_current_a, .pv2_current_a,
@@ -148,14 +148,14 @@ while true; do
         -v production_dc_today_kwh="$production_dc_today_kwh" \
         -v yield_ac_today_kwh="$yield_ac_today_kwh" \
         -v grid_power_w="$grid_power_w" \
-        -v grid_import_total_kwh="$grid_import_total_kwh" \
-        -v grid_export_total_kwh="$grid_export_total_kwh" \
+        -v grid_import_today_kwh="$grid_import_today_kwh" \
+        -v grid_export_today_kwh="$grid_export_today_kwh" \
         -v house_power_w="$house_power_w" \
         -v battery_power_w="$battery_power_w" \
         -v battery_soc_pct="$battery_soc_pct" \
-        -v battery_charged_total_kwh="$battery_charged_total_kwh" \
-        -v battery_discharged_total_kwh="$battery_discharged_total_kwh" \
-        -v battery_capacity_kwh="$battery_capacity_kwh" \
+        -v battery_charge_today_kwh="$battery_charge_today_kwh" \
+        -v battery_discharge_today_kwh="$battery_discharge_today_kwh" \
+        -v battery_stored_energy_kwh="$battery_stored_energy_kwh" \
         -v battery_temp_c="$battery_temp_c" \
         -v inverter_power_w="$inverter_power_w" \
         -v inverter_temp_c="$inverter_temp_c" \
@@ -182,11 +182,11 @@ INSERT INTO solax_raw (
   serial_number, api_version, inverter_type,
   pv1_power_w, pv2_power_w, pv_total_power_w,
   production_dc_today_kwh, yield_ac_today_kwh,
-  grid_power_w, grid_import_total_kwh, grid_export_total_kwh,
+  grid_power_w, grid_import_today_kwh, grid_export_today_kwh,
   house_power_w,
   battery_power_w, battery_soc_pct,
-  battery_charged_total_kwh, battery_discharged_total_kwh,
-  battery_capacity_kwh, battery_temp_c,
+  battery_charge_today_kwh, battery_discharge_today_kwh,
+  battery_stored_energy_kwh, battery_temp_c,
   inverter_power_w, inverter_temp_c, inverter_mode,
   grid_l1_power_w, grid_l2_power_w, grid_l3_power_w,
   pv1_voltage_v, pv2_voltage_v, pv1_current_a, pv2_current_a,
@@ -203,14 +203,14 @@ INSERT INTO solax_raw (
   NULLIF(:'production_dc_today_kwh','')::double precision,
   NULLIF(:'yield_ac_today_kwh','')::double precision,
   NULLIF(:'grid_power_w','')::double precision,
-  NULLIF(:'grid_import_total_kwh','')::double precision,
-  NULLIF(:'grid_export_total_kwh','')::double precision,
+  NULLIF(:'grid_import_today_kwh','')::double precision,
+  NULLIF(:'grid_export_today_kwh','')::double precision,
   NULLIF(:'house_power_w','')::double precision,
   NULLIF(:'battery_power_w','')::double precision,
   NULLIF(:'battery_soc_pct','')::double precision,
-  NULLIF(:'battery_charged_total_kwh','')::double precision,
-  NULLIF(:'battery_discharged_total_kwh','')::double precision,
-  NULLIF(:'battery_capacity_kwh','')::double precision,
+  NULLIF(:'battery_charge_today_kwh','')::double precision,
+  NULLIF(:'battery_discharge_today_kwh','')::double precision,
+  NULLIF(:'battery_stored_energy_kwh','')::double precision,
   NULLIF(:'battery_temp_c','')::double precision,
   NULLIF(:'inverter_power_w','')::double precision,
   NULLIF(:'inverter_temp_c','')::double precision,
