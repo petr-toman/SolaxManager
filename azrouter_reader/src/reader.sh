@@ -202,7 +202,8 @@ SQL
           '
         )"
 
-        IFS=          device_type device_id priority name status_code signal_db serial_number fw_version hw_version \
+        IFS=$'\t' read -r \
+          device_type device_id priority name status_code signal_db serial_number fw_version hw_version \
           power_l1_w power_l2_w power_l3_w power_total_w max_power_w temperature_c \
           boost boost_source boost_temp_override outlet_mode connected_l1 connected_l2 connected_l3 \
           <<< "$(
