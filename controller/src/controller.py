@@ -43,9 +43,12 @@ HOT_STANDBY = {
     1: False,
 }
 
+# Observed on the target inverter via ReadSetData while the LCD/cloud setting
+# is Enable and per-phase asymmetric output is active:
+#   0 = Enable, 1 = Disable
 PHASE_UNBALANCED = {
-    0: False,
-    1: True,
+    0: True,
+    1: False,
 }
 
 

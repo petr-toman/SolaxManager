@@ -171,10 +171,12 @@ the independent AZ Router CT telemetry.
 For the target X3-Hybrid G4, SolaxManager reads `ReadSetData[190]`:
 
 ```text
-0 = disabled
-1 = enabled
+0 = enabled
+1 = disabled
 ```
 
-This mapping is consistent with the known X3-Hybrid G4 advanced-settings block:
-Hot Standby is at local index 185 and Phase Power Balance / Phase Unbalanced is
-five settings later. Unknown values are rejected rather than silently mapped.
+Index 190 is the currently observed local setting slot. On the target inverter,
+a live read while the LCD/cloud setting is Enable and asymmetric per-phase
+output is demonstrably active returns 0, so the local ReadSetData polarity is
+treated as 0=enabled and 1=disabled. This must not be inferred from the public
+Modbus register polarity. Unknown values are rejected rather than silently mapped.

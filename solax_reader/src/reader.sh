@@ -403,8 +403,8 @@ WITH candidate AS (
     END AS hot_standby,
     NULLIF(:'hot_standby_code','')::integer AS hot_standby_code,
     CASE NULLIF(:'phase_unbalanced_code','')::integer
-      WHEN 0 THEN FALSE
-      WHEN 1 THEN TRUE
+      WHEN 0 THEN TRUE
+      WHEN 1 THEN FALSE
       ELSE NULL
     END AS phase_unbalanced,
     NULLIF(:'phase_unbalanced_code','')::integer AS phase_unbalanced_code
@@ -466,7 +466,7 @@ RETURNING id;
 SQL
         )"; then
           if [[ -n "$config_result" ]]; then
-            log "configuration changed; stored new solax_config version id=$config_result phase_unbalanced=$([[ "$phase_unbalanced_code" == "1" ]] && echo enabled || echo disabled)"
+            log "configuration changed; stored new solax_config version id=$config_result phase_unbalanced=$([[ "$phase_unbalanced_code" == "0" ]] && echo enabled || echo disabled)"
           fi
         else
           log "failed to version SolaX configuration"
