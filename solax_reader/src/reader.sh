@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -u
 
-interval="${POLL_INTERVAL_SECONDS:-5}"
+base_interval="${READER_BASE_INTERVAL_SECONDS:-5}"
+realtime_every="${SOLAX_REALTIME_EVERY_N_LOOPS:-1}"
+config_every="${SOLAX_CONFIG_EVERY_N_LOOPS:-12}"
 run_once="${RUN_ONCE:-false}"
 
 log() {
@@ -18,10 +20,20 @@ if [[ -z "${SOLAX_URL:-}" ]]; then
   exit 1
 fi
 
-log "starting; endpoint=${SOLAX_URL}; interval=${interval}s"
+for value_name in base_interval realtime_every config_every; do
+  value="${!value_name}"
+  if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+    log "$value_name must be a positive integer"
+    exit 1
+  fi
+done
+
+log "starting; endpoint=${SOLAX_URL}; base_interval=${base_interval}s; realtime_every=${realtime_every}; config_every=${config_every}"
+poll_count=0
 
 while true; do
-  measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if (( poll_count % realtime_every == 0 )); then
+    measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   if [[ -z "${SOLAX_PASSWORD:-}" ]]; then
     log "SOLAX_PASSWORD not configured; waiting"
@@ -265,9 +277,195 @@ SQL
     fi
   fi
 
+  fi
+
+  if (( poll_count % config_every == 0 )); then
+    config_measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    if [[ -z "${SOLAX_PASSWORD:-}" ]]; then
+      log "SOLAX_PASSWORD not configured; config read skipped"
+    else
+      config_response="$(
+        curl -fsS --max-time 4 \
+          --data "optType=ReadSetData" \
+          --data-urlencode "pwd=${SOLAX_PASSWORD}" \
+          -X POST "${SOLAX_URL}" 2>/dev/null || true
+      )"
+
+      config_data="$(
+        echo "$config_response" | jq -c '
+          if type == "array" then .
+          elif (type == "object" and (.Data | type) == "array") then .Data
+          else empty
+          end
+        ' 2>/dev/null || true
+      )"
+
+      if [[ -z "$config_data" ]] || ! echo "$config_data" | jq -e 'length > 185' >/dev/null 2>&1; then
+        log "ReadSetData response missing or not recognized"
+      else
+        config_mapped="$(
+          echo "$config_data" | jq -c '
+            (.[27] // null) as $work_mode_code |
+            {
+              work_mode_code: $work_mode_code,
+              work_mode:
+                (if $work_mode_code == 0 then "self_use"
+                 elif $work_mode_code == 2 then "backup_mode"
+                 elif $work_mode_code == null then null
+                 else ("unknown_" + ($work_mode_code | tostring))
+                 end),
+              min_soc_pct: (.[28] // null),
+              charge_from_grid: (.[29] // null),
+              charge_to_soc_pct: (.[30] // null),
+              forced_charge_start_raw: (.[36] // null),
+              forced_charge_end_raw: (.[37] // null),
+              allowed_discharge_start_raw: (.[38] // null),
+              allowed_discharge_end_raw: (.[39] // null),
+              hot_standby_code: (.[185] // null)
+            }
+          '
+        )"
+
+        IFS=$'\t' read -r \
+          work_mode_code work_mode min_soc_pct charge_from_grid charge_to_soc_pct \
+          forced_charge_start_raw forced_charge_end_raw \
+          allowed_discharge_start_raw allowed_discharge_end_raw hot_standby_code \
+          <<< "$(
+            echo "$config_mapped" | jq -r '
+              [
+                .work_mode_code, .work_mode, .min_soc_pct, .charge_from_grid,
+                .charge_to_soc_pct, .forced_charge_start_raw, .forced_charge_end_raw,
+                .allowed_discharge_start_raw, .allowed_discharge_end_raw,
+                .hot_standby_code
+              ]
+              | map(if . == null then "" else tostring end)
+              | @tsv
+            '
+          )"
+
+        if config_result="$(
+          psql "$DATABASE_URL" -X -A -t -q -v ON_ERROR_STOP=1 \
+            -v observed_at="$config_measured_at" \
+            -v work_mode_code="$work_mode_code" \
+            -v work_mode="$work_mode" \
+            -v min_soc_pct="$min_soc_pct" \
+            -v charge_from_grid="$charge_from_grid" \
+            -v charge_to_soc_pct="$charge_to_soc_pct" \
+            -v forced_charge_start_raw="$forced_charge_start_raw" \
+            -v forced_charge_end_raw="$forced_charge_end_raw" \
+            -v allowed_discharge_start_raw="$allowed_discharge_start_raw" \
+            -v allowed_discharge_end_raw="$allowed_discharge_end_raw" \
+            -v hot_standby_code="$hot_standby_code" <<'SQL'
+WITH candidate AS (
+  SELECT
+    :'observed_at'::timestamptz AS begdat,
+    NULLIF(:'work_mode_code','')::integer AS work_mode_code,
+    NULLIF(:'work_mode','') AS work_mode,
+    NULLIF(:'min_soc_pct','')::integer AS min_soc_pct,
+    CASE
+      WHEN NULLIF(:'charge_from_grid','') IS NULL THEN NULL
+      ELSE NULLIF(:'charge_from_grid','')::integer <> 0
+    END AS charge_from_grid,
+    NULLIF(:'charge_to_soc_pct','')::integer AS charge_to_soc_pct,
+    CASE WHEN NULLIF(:'forced_charge_start_raw','') IS NULL THEN NULL
+      ELSE make_time(
+        NULLIF(:'forced_charge_start_raw','')::integer & 255,
+        (NULLIF(:'forced_charge_start_raw','')::integer >> 8) & 255,
+        0
+      ) END AS forced_charge_start,
+    CASE WHEN NULLIF(:'forced_charge_end_raw','') IS NULL THEN NULL
+      ELSE make_time(
+        NULLIF(:'forced_charge_end_raw','')::integer & 255,
+        (NULLIF(:'forced_charge_end_raw','')::integer >> 8) & 255,
+        0
+      ) END AS forced_charge_end,
+    CASE WHEN NULLIF(:'allowed_discharge_start_raw','') IS NULL THEN NULL
+      ELSE make_time(
+        NULLIF(:'allowed_discharge_start_raw','')::integer & 255,
+        (NULLIF(:'allowed_discharge_start_raw','')::integer >> 8) & 255,
+        0
+      ) END AS allowed_discharge_start,
+    CASE WHEN NULLIF(:'allowed_discharge_end_raw','') IS NULL THEN NULL
+      ELSE make_time(
+        NULLIF(:'allowed_discharge_end_raw','')::integer & 255,
+        (NULLIF(:'allowed_discharge_end_raw','')::integer >> 8) & 255,
+        0
+      ) END AS allowed_discharge_end,
+    CASE NULLIF(:'hot_standby_code','')::integer
+      WHEN 0 THEN TRUE
+      WHEN 1 THEN FALSE
+      ELSE NULL
+    END AS hot_standby,
+    NULLIF(:'hot_standby_code','')::integer AS hot_standby_code
+),
+current AS (
+  SELECT *
+  FROM solax_config
+  WHERE enddat IS NULL
+),
+needs_change AS (
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM current c
+    CROSS JOIN candidate n
+    WHERE ROW(
+      c.work_mode_code, c.work_mode, c.min_soc_pct,
+      c.charge_from_grid, c.charge_to_soc_pct,
+      c.forced_charge_start, c.forced_charge_end,
+      c.allowed_discharge_start, c.allowed_discharge_end,
+      c.hot_standby, c.hot_standby_code
+    ) IS NOT DISTINCT FROM ROW(
+      n.work_mode_code, n.work_mode, n.min_soc_pct,
+      n.charge_from_grid, n.charge_to_soc_pct,
+      n.forced_charge_start, n.forced_charge_end,
+      n.allowed_discharge_start, n.allowed_discharge_end,
+      n.hot_standby, n.hot_standby_code
+    )
+  ) AS value
+),
+closed AS (
+  UPDATE solax_config
+  SET enddat = (SELECT begdat FROM candidate)
+  WHERE enddat IS NULL
+    AND (SELECT value FROM needs_change)
+  RETURNING id
+)
+INSERT INTO solax_config (
+  begdat, enddat,
+  work_mode_code, work_mode, min_soc_pct,
+  charge_from_grid, charge_to_soc_pct,
+  forced_charge_start, forced_charge_end,
+  allowed_discharge_start, allowed_discharge_end,
+  hot_standby, hot_standby_code
+)
+SELECT
+  begdat, NULL,
+  work_mode_code, work_mode, min_soc_pct,
+  charge_from_grid, charge_to_soc_pct,
+  forced_charge_start, forced_charge_end,
+  allowed_discharge_start, allowed_discharge_end,
+  hot_standby, hot_standby_code
+FROM candidate
+WHERE (SELECT value FROM needs_change)
+RETURNING id;
+SQL
+        )"; then
+          if [[ -n "$config_result" ]]; then
+            log "configuration changed; stored new solax_config version id=$config_result"
+          fi
+        else
+          log "failed to version SolaX configuration"
+        fi
+      fi
+    fi
+  fi
+
+  poll_count=$((poll_count + 1))
+
   if [[ "$run_once" == "true" || "$run_once" == "1" ]]; then
     break
   fi
 
-  sleep "$interval"
+  sleep "$base_interval"
 done
