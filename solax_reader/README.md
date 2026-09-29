@@ -93,7 +93,7 @@ The reader uses one loop. With the defaults below, realtime data is read every
 
 `ReadSetData` is normalized only for settings SolaxManager currently cares
 about: work mode, MinSOC, grid charging/target SOC, forced-charge and allowed
-discharge windows, and Hot Standby.
+discharge windows, Hot Standby, and Phase Unbalanced.
 
 The reader compares these normalized values with the open row in
 `solax_config`. If they are identical, nothing is written. If they changed,
@@ -164,3 +164,17 @@ A; its sign follows battery power (positive charging, negative discharging).
 `Data[6..8]` and `Data[3..5]` are stored as inverter AC phase power/current,
 not as the actual per-phase grid flow. Actual grid L1/L2/L3 flow will come from
 the independent AZ Router CT telemetry.
+
+
+### Phase Unbalanced mapping
+
+For the target X3-Hybrid G4, SolaxManager reads `ReadSetData[190]`:
+
+```text
+0 = disabled
+1 = enabled
+```
+
+This mapping is consistent with the known X3-Hybrid G4 advanced-settings block:
+Hot Standby is at local index 185 and Phase Power Balance / Phase Unbalanced is
+five settings later. Unknown values are rejected rather than silently mapped.

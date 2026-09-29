@@ -86,3 +86,9 @@ Both use:
 Readers insert a version only when tracked normalized settings change. This
 keeps configuration history compact while making temporal joins straightforward,
 for example `raw.measured_at <@ config.validity`.
+
+
+Migration `007_solax_phase_unbalanced_config.sql` extends `solax_config`
+with `phase_unbalanced` and its source code. Because configuration history is
+change-only, the first poll after this migration creates a new version that
+establishes when this newly tracked value was first observed.

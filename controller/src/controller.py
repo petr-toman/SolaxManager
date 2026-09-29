@@ -29,6 +29,7 @@ IDX_FORCED_CHARGE_END = 37
 IDX_ALLOWED_DISCHARGE_START = 38
 IDX_ALLOWED_DISCHARGE_END = 39
 IDX_HOT_STANDBY = 185
+IDX_PHASE_UNBALANCED = 190
 
 WORK_MODES = {
     0: "self_use",
@@ -40,6 +41,11 @@ WORK_MODES = {
 HOT_STANDBY = {
     0: True,
     1: False,
+}
+
+PHASE_UNBALANCED = {
+    0: False,
+    1: True,
 }
 
 
@@ -61,6 +67,8 @@ class SolaxConfig:
     allowed_discharge_end: str
     hot_standby: bool
     hot_standby_code: int
+    phase_unbalanced: bool
+    phase_unbalanced_code: int
 
 
 def decode_hhmm(value: int) -> str:
@@ -127,9 +135,10 @@ def read_set_data() -> list[int]:
     else:
         raise SolaxConfigError("Unexpected ReadSetData response shape")
 
-    if len(data) <= IDX_HOT_STANDBY:
+    required_max_index = max(IDX_HOT_STANDBY, IDX_PHASE_UNBALANCED)
+    if len(data) <= required_max_index:
         raise SolaxConfigError(
-            f"ReadSetData is too short: {len(data)} values, need at least {IDX_HOT_STANDBY + 1}"
+            f"ReadSetData is too short: {len(data)} values, need at least {required_max_index + 1}"
         )
 
     if not all(isinstance(value, int) for value in data):
@@ -141,10 +150,16 @@ def read_set_data() -> list[int]:
 def parse_config(data: list[int]) -> SolaxConfig:
     work_mode_code = data[IDX_WORK_MODE]
     hot_standby_code = data[IDX_HOT_STANDBY]
+    phase_unbalanced_code = data[IDX_PHASE_UNBALANCED]
 
     if hot_standby_code not in HOT_STANDBY:
         raise SolaxConfigError(
             f"Unknown hot_standby code {hot_standby_code}; refusing to guess"
+        )
+
+    if phase_unbalanced_code not in PHASE_UNBALANCED:
+        raise SolaxConfigError(
+            f"Unknown phase_unbalanced code {phase_unbalanced_code}; refusing to guess"
         )
 
     return SolaxConfig(
@@ -160,6 +175,8 @@ def parse_config(data: list[int]) -> SolaxConfig:
         allowed_discharge_end=decode_hhmm(data[IDX_ALLOWED_DISCHARGE_END]),
         hot_standby=HOT_STANDBY[hot_standby_code],
         hot_standby_code=hot_standby_code,
+        phase_unbalanced=PHASE_UNBALANCED[phase_unbalanced_code],
+        phase_unbalanced_code=phase_unbalanced_code,
     )
 
 
@@ -196,6 +213,7 @@ def run_get(name: str) -> int:
             config.allowed_discharge_end,
         ),
         "hot_standby": ("hot_standby", config.hot_standby),
+        "phase_unbalanced": ("phase_unbalanced", config.phase_unbalanced),
         "inverter_time": ("inverter_time", config.inverter_time),
     }
 
