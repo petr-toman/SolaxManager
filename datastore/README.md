@@ -36,6 +36,7 @@ the new migration explicitly with `psql` rather than deleting the volume.
 
 - `solax_raw` – normalized SolaX measurements plus original JSON payload
 - `azrouter_raw` – high-frequency AZ Router CT/grid telemetry plus original JSON payload
+- `azrouter_device_raw` – lower-frequency paired-device/boiler telemetry plus original device JSON
 - `energy_15m`
 - `energy_day`
 - `controller_action`
@@ -58,3 +59,11 @@ device-reported update timestamp. The source JSON is preserved in every row.
 These 5-second samples are the raw buffer. The reporter will later create
 1-minute and 15-minute aggregates and integrate import/export energy separately
 so simultaneous import on one phase and export on another are not lost.
+
+
+## AZ Router paired-device telemetry
+
+Migration `005_azrouter_devices.sql` creates `azrouter_device_raw`. One row is
+stored per paired device on each device poll. Current-state fields are
+normalized for telemetry, while the complete device object (including both
+settings profiles) remains available in `raw_payload`.

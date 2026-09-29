@@ -183,6 +183,20 @@
         </table>
       </section>
 
+
+      <section class="card">
+        <h2>AZ Router · <span id="az-device-name">zařízení</span></h2>
+        <div class="hero"><span id="az-device-temp">—</span> <span class="unit">°C</span></div>
+        <div class="rows">
+          <div class="row"><span>Stav</span><span class="value" id="az-device-status">—</span></div>
+          <div class="row"><span>Výkon</span><span class="value" id="az-device-power">—</span></div>
+          <div class="row"><span>BOOST</span><span class="value" id="az-device-boost">—</span></div>
+          <div class="row"><span>Připojené fáze</span><span class="value" id="az-device-phases">—</span></div>
+          <div class="row"><span>Signál</span><span class="value" id="az-device-signal">—</span></div>
+          <div class="row"><span>Stáří dat</span><span class="value" id="az-device-age">—</span></div>
+        </div>
+      </section>
+
       <section class="card wide">
         <h2>Síť po fázích · AZ Router</h2>
         <div class="rows" style="margin-bottom:10px">
@@ -282,6 +296,43 @@
         set('az-l' + phase + 'v', n(d['azrouter_grid_l' + phase + '_voltage_v'], 1));
         set('az-l' + phase + 'a', n(d['azrouter_grid_l' + phase + '_current_a'], 2));
         set('az-l' + phase + 'w', n(d['azrouter_grid_l' + phase + '_power_w'], 0));
+      }
+
+
+      const devices = Array.isArray(d.azrouter_devices) ? d.azrouter_devices : [];
+      const device = devices.slice().sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))[0];
+
+      if (device) {
+        set('az-device-name', device.name || ('#' + (device.device_id ?? '?')));
+        set('az-device-temp', n(device.temperature_c, 1));
+        set('az-device-power', n(device.power_total_w, 0, 'W'));
+        set('az-device-signal', n(device.signal_db, 0, 'dB'));
+        set('az-device-age', n(device.sample_age_seconds, 1, 's'));
+
+        const statusEl = $('az-device-status');
+        statusEl.textContent = device.status || (device.status_code ?? '—');
+        statusEl.className = 'value ' + (device.status === 'online' || device.status === 'active' ? 'good' : 'warn');
+
+        const boostEl = $('az-device-boost');
+        boostEl.textContent = device.boost === true ? 'zapnut' : device.boost === false ? 'vypnut' : '—';
+        boostEl.className = 'value ' + (device.boost === true ? 'warn' : '');
+
+        const phases = [];
+        if (device.connected_l1) phases.push('L1');
+        if (device.connected_l2) phases.push('L2');
+        if (device.connected_l3) phases.push('L3');
+        set('az-device-phases', phases.length ? phases.join(', ') : '—');
+
+        $('az-device-age').className = 'value ' + (device.stale ? 'warn' : 'good');
+      } else {
+        set('az-device-name', 'zařízení');
+        set('az-device-temp', '—');
+        set('az-device-status', 'bez dat');
+        set('az-device-power', '—');
+        set('az-device-boost', '—');
+        set('az-device-phases', '—');
+        set('az-device-signal', '—');
+        set('az-device-age', '—');
       }
 
       const measured = new Date(d.measured_at);

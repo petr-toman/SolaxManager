@@ -56,6 +56,19 @@ ORDER BY measured_at DESC
 LIMIT 1
 """
 
+LATEST_AZROUTER_DEVICES_SQL = """
+SELECT DISTINCT ON (device_id)
+    measured_at,
+    device_type, device_id, priority, name, status_code, signal_db,
+    serial_number, fw_version, hw_version,
+    power_l1_w, power_l2_w, power_l3_w, power_total_w, max_power_w,
+    temperature_c,
+    boost, boost_source, boost_temp_override, outlet_mode,
+    connected_l1, connected_l2, connected_l3
+FROM azrouter_device_raw
+ORDER BY device_id, measured_at DESC
+"""
+
 
 def sample_age(measured_at):
     now = datetime.now(timezone.utc)
@@ -70,6 +83,9 @@ def latest_sample():
 
             cur.execute(LATEST_AZROUTER_SQL)
             azrouter = cur.fetchone()
+
+            cur.execute(LATEST_AZROUTER_DEVICES_SQL)
+            azrouter_devices = cur.fetchall()
 
     if solax is None:
         return None
@@ -101,6 +117,25 @@ def latest_sample():
         for key, value in az.items():
             if key not in {"measured_at", "device_last_update"}:
                 data[f"azrouter_{key}"] = value
+
+    status_strings = ["unpaired", "online", "offline", "error", "active"]
+    devices = []
+    for row in azrouter_devices:
+        device = dict(row)
+        age = sample_age(device["measured_at"])
+        device["measured_at"] = device["measured_at"].isoformat()
+        device["sample_age_seconds"] = round(age, 3)
+        device["stale"] = age > STALE_AFTER_SECONDS
+
+        code = device.get("status_code")
+        if isinstance(code, int) and 0 <= code < len(status_strings):
+            device["status"] = status_strings[code]
+        else:
+            device["status"] = None
+
+        devices.append(device)
+
+    data["azrouter_devices"] = devices
 
     return data
 
