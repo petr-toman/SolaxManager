@@ -224,26 +224,18 @@ def serve() -> int:
         )
         return 2
 
-    print(f"controller starting in {CONTROLLER_MODE.upper()} mode", flush=True)
+    print(
+        f"controller starting in {CONTROLLER_MODE.upper()} mode; "
+        "background configuration polling belongs to readers",
+        flush=True,
+    )
+
+    # The controller deliberately does not poll device configuration in the
+    # background. Reader services own observed state/history. Direct reads
+    # remain available here for transactional read-before-write/read-back
+    # checks once SET operations are implemented.
     while True:
-        try:
-            config = get_config()
-            print(
-                f"{datetime.now(timezone.utc).isoformat()} controller: "
-                f"mode={CONTROLLER_MODE}; work_mode={config.work_mode}; "
-                f"min_soc={config.min_soc_pct}%; "
-                f"charge_from_grid={config.charge_from_grid}; "
-                f"hot_standby={config.hot_standby}",
-                flush=True,
-            )
-        except SolaxConfigError as exc:
-            print(
-                f"{datetime.now(timezone.utc).isoformat()} controller: "
-                f"config read failed: {exc}",
-                file=sys.stderr,
-                flush=True,
-            )
-        time.sleep(60)
+        time.sleep(3600)
 
 
 def usage() -> None:
