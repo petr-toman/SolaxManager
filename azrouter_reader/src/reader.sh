@@ -16,9 +16,6 @@ log() {
   printf '%s azrouter_reader: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
 }
 
-bool_sql() {
-  :
-}
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
   log "DATABASE_URL is not configured"
