@@ -180,6 +180,24 @@
           </tbody>
         </table>
       </section>
+
+      <section class="card wide">
+        <h2>Síť po fázích · AZ Router</h2>
+        <div class="rows" style="margin-bottom:10px">
+          <div class="row"><span>Součet fází</span><span class="value" id="az-total">—</span></div>
+          <div class="row"><span>Stáří AZ dat</span><span class="value" id="az-age">—</span></div>
+        </div>
+        <table class="phase-table">
+          <thead>
+            <tr><th></th><th>V</th><th>A</th><th>W</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>L1</td><td id="az-l1v">—</td><td id="az-l1a">—</td><td id="az-l1w">—</td></tr>
+            <tr><td>L2</td><td id="az-l2v">—</td><td id="az-l2a">—</td><td id="az-l2w">—</td></tr>
+            <tr><td>L3</td><td id="az-l3v">—</td><td id="az-l3a">—</td><td id="az-l3w">—</td></tr>
+          </tbody>
+        </table>
+      </section>
     </div>
 
     <footer>
@@ -237,6 +255,29 @@
         set('l' + phase + 'a', n(d['inverter_l' + phase + '_current_a'], 1));
         set('l' + phase + 'w', n(d['inverter_l' + phase + '_power_w'], 0));
         set('l' + phase + 'hz', n(d['grid_frequency_l' + phase + '_hz'], 2));
+      }
+
+
+      const azAvailable = Boolean(d.azrouter_available);
+      const azTotal = d.azrouter_grid_total_power_w;
+      const azTotalEl = $('az-total');
+      if (!azAvailable || azTotal === null || azTotal === undefined) {
+        azTotalEl.textContent = '—';
+        azTotalEl.className = 'value warn';
+      } else {
+        const azp = Number(azTotal);
+        azTotalEl.textContent = (azp < 0 ? 'odběr ' : 'dodávka ') + n(Math.abs(azp), 0, 'W');
+        azTotalEl.className = 'value ' + (azp < 0 ? 'bad' : 'good');
+      }
+
+      const azAge = d.azrouter_sample_age_seconds;
+      set('az-age', azAge === null || azAge === undefined ? 'bez dat' : n(azAge, 1, 's'));
+      $('az-age').className = 'value ' + (d.azrouter_stale ? 'warn' : 'good');
+
+      for (const phase of [1,2,3]) {
+        set('az-l' + phase + 'v', n(d['azrouter_grid_l' + phase + '_voltage_v'], 1));
+        set('az-l' + phase + 'a', n(d['azrouter_grid_l' + phase + '_current_a'], 2));
+        set('az-l' + phase + 'w', n(d['azrouter_grid_l' + phase + '_power_w'], 0));
       }
 
       const measured = new Date(d.measured_at);
