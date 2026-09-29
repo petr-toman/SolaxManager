@@ -36,8 +36,8 @@ services:
     container_name: solaxmanager-azrouter-reader
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
-      AZROUTER_URL: ${AZROUTER_URL:-}
-      POLL_INTERVAL_SECONDS: ${AZROUTER_POLL_INTERVAL_SECONDS:-5}
+      AZROUTER_URL: ${AZROUTER_URL:-http://192.168.1.21}
+      AZROUTER_POLL_INTERVAL_SECONDS: ${AZROUTER_POLL_INTERVAL_SECONDS:-5}
     depends_on:
       datastore:
         condition: service_healthy
