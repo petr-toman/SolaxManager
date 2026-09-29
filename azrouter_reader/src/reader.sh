@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -u
 
-interval="${AZROUTER_POLL_INTERVAL_SECONDS:-5}"
-devices_every="${AZROUTER_DEVICES_EVERY_N_POLLS:-3}"
+base_interval="${READER_BASE_INTERVAL_SECONDS:-5}"
+power_every="${AZROUTER_POWER_EVERY_N_LOOPS:-1}"
+devices_every="${AZROUTER_DEVICES_EVERY_N_LOOPS:-3}"
+config_every="${AZROUTER_CONFIG_EVERY_N_LOOPS:-12}"
 run_once="${RUN_ONCE:-false}"
 base_url="${AZROUTER_URL:-}"
 power_endpoint="${base_url%/}/api/v1/power"
 devices_endpoint="${base_url%/}/api/v1/devices"
+settings_endpoint="${base_url%/}/api/v1/settings"
 
 log() {
   printf '%s azrouter_reader: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
@@ -22,17 +25,28 @@ if [[ -z "$base_url" ]]; then
   exit 1
 fi
 
-if ! [[ "$devices_every" =~ ^[1-9][0-9]*$ ]]; then
-  log "AZROUTER_DEVICES_EVERY_N_POLLS must be a positive integer"
-  exit 1
-fi
+for value_name in base_interval power_every devices_every config_every; do
+  value="${!value_name}"
+  if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+    log "$value_name must be a positive integer"
+    exit 1
+  fi
+done
 
-log "starting; power=${power_endpoint}; devices=${devices_endpoint}; interval=${interval}s; devices_every=${devices_every}"
+log "starting; base_interval=${base_interval}s; power_every=${power_every}; devices_every=${devices_every}; config_every=${config_every}"
 poll_count=0
 
 while true; do
-  measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  response="$(curl -fsS --max-time 4 "$power_endpoint" 2>/dev/null || true)"
+  power_due=false
+  devices_due=false
+  config_due=false
+  (( poll_count % power_every == 0 )) && power_due=true
+  (( poll_count % devices_every == 0 )) && devices_due=true
+  (( poll_count % config_every == 0 )) && config_due=true
+
+  if [[ "$power_due" == "true" ]]; then
+    measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    response="$(curl -fsS --max-time 4 "$power_endpoint" 2>/dev/null || true)"
 
   if [[ -z "$response" ]]; then
     log "no response from AZ Router"
@@ -155,8 +169,9 @@ SQL
     fi
   fi
 
+  fi
 
-  if (( poll_count % devices_every == 0 )); then
+  if [[ "$devices_due" == "true" || "$config_due" == "true" ]]; then
     devices_measured_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     devices_response="$(curl -fsS --max-time 4 "$devices_endpoint" 2>/dev/null || true)"
 
@@ -300,7 +315,7 @@ SQL
     break
   fi
 
-  sleep "$interval"
+  sleep "$base_interval"
 done
 \t' read -r \
           device_type device_id priority name status_code signal_db serial_number fw_version hw_version \
