@@ -168,7 +168,7 @@
       </section>
 
       <section class="card wide">
-        <h2>Fáze sítě</h2>
+        <h2>AC fáze střídače</h2>
         <table class="phase-table">
           <thead>
             <tr><th></th><th>V</th><th>A</th><th>W</th><th>Hz</th></tr>
@@ -234,8 +234,8 @@
 
       for (const phase of [1,2,3]) {
         set('l' + phase + 'v', n(d['grid_l' + phase + '_voltage_v'], 1));
-        set('l' + phase + 'a', n(d['grid_l' + phase + '_current_a'], 1));
-        set('l' + phase + 'w', n(d['grid_l' + phase + '_power_w'], 0));
+        set('l' + phase + 'a', n(d['inverter_l' + phase + '_current_a'], 1));
+        set('l' + phase + 'w', n(d['inverter_l' + phase + '_power_w'], 0));
         set('l' + phase + 'hz', n(d['grid_frequency_l' + phase + '_hz'], 2));
       }
 

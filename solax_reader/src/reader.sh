@@ -81,6 +81,7 @@ while true; do
             house_power_w:               s16(.Data[47] // 0),
 
             battery_power_w:             s16(.Data[41] // 0),
+            battery_current_a:           (s16(.Data[40] // 0) / 100),
             battery_soc_pct:             (.Data[103] // 0),
             battery_charge_today_kwh:   ((.Data[79] // 0) / 10),
             battery_discharge_today_kwh:((.Data[78] // 0) / 10),
@@ -93,9 +94,9 @@ while true; do
             inverter_mode:               (.Data[19] // 0),
             inverter_state:              inverter_state(.Data[19] // 0),
 
-            grid_l1_power_w:             s16(.Data[6] // 0),
-            grid_l2_power_w:             s16(.Data[7] // 0),
-            grid_l3_power_w:             s16(.Data[8] // 0),
+            inverter_l1_power_w:             s16(.Data[6] // 0),
+            inverter_l2_power_w:             s16(.Data[7] // 0),
+            inverter_l3_power_w:             s16(.Data[8] // 0),
 
             pv1_voltage_v:               ((.Data[10] // 0) / 10),
             pv2_voltage_v:               ((.Data[11] // 0) / 10),
@@ -105,9 +106,9 @@ while true; do
             grid_l1_voltage_v:           ((.Data[0] // 0) / 10),
             grid_l2_voltage_v:           ((.Data[1] // 0) / 10),
             grid_l3_voltage_v:           ((.Data[2] // 0) / 10),
-            grid_l1_current_a:           (s16(.Data[3] // 0) / 10),
-            grid_l2_current_a:           (s16(.Data[4] // 0) / 10),
-            grid_l3_current_a:           (s16(.Data[5] // 0) / 10),
+            inverter_l1_current_a:           (s16(.Data[3] // 0) / 10),
+            inverter_l2_current_a:           (s16(.Data[4] // 0) / 10),
+            inverter_l3_current_a:           (s16(.Data[5] // 0) / 10),
 
             grid_frequency_l1_hz:        ((.Data[16] // 0) / 100),
             grid_frequency_l2_hz:        ((.Data[17] // 0) / 100),
@@ -122,12 +123,12 @@ while true; do
         production_dc_today_kwh yield_ac_today_kwh \
         grid_power_w grid_import_today_kwh grid_export_today_kwh \
         house_power_w \
-        battery_power_w battery_soc_pct battery_charge_today_kwh battery_discharge_today_kwh battery_stored_energy_kwh battery_temp_c battery_voltage_v \
+        battery_power_w battery_current_a battery_soc_pct battery_charge_today_kwh battery_discharge_today_kwh battery_stored_energy_kwh battery_temp_c battery_voltage_v \
         inverter_power_w inverter_temp_c inverter_mode inverter_state \
-        grid_l1_power_w grid_l2_power_w grid_l3_power_w \
+        inverter_l1_power_w inverter_l2_power_w inverter_l3_power_w \
         pv1_voltage_v pv2_voltage_v pv1_current_a pv2_current_a \
         grid_l1_voltage_v grid_l2_voltage_v grid_l3_voltage_v \
-        grid_l1_current_a grid_l2_current_a grid_l3_current_a \
+        inverter_l1_current_a inverter_l2_current_a inverter_l3_current_a \
         grid_frequency_l1_hz grid_frequency_l2_hz grid_frequency_l3_hz \
         <<< "$(
           echo "$mapped" | jq -r '
@@ -137,13 +138,13 @@ while true; do
               .production_dc_today_kwh, .yield_ac_today_kwh,
               .grid_power_w, .grid_import_today_kwh, .grid_export_today_kwh,
               .house_power_w,
-              .battery_power_w, .battery_soc_pct, .battery_charge_today_kwh,
+              .battery_power_w, .battery_current_a, .battery_soc_pct, .battery_charge_today_kwh,
               .battery_discharge_today_kwh, .battery_stored_energy_kwh, .battery_temp_c, .battery_voltage_v,
               .inverter_power_w, .inverter_temp_c, .inverter_mode, .inverter_state,
-              .grid_l1_power_w, .grid_l2_power_w, .grid_l3_power_w,
+              .inverter_l1_power_w, .inverter_l2_power_w, .inverter_l3_power_w,
               .pv1_voltage_v, .pv2_voltage_v, .pv1_current_a, .pv2_current_a,
               .grid_l1_voltage_v, .grid_l2_voltage_v, .grid_l3_voltage_v,
-              .grid_l1_current_a, .grid_l2_current_a, .grid_l3_current_a,
+              .inverter_l1_current_a, .inverter_l2_current_a, .inverter_l3_current_a,
               .grid_frequency_l1_hz, .grid_frequency_l2_hz, .grid_frequency_l3_hz
             ]
             | map(if . == null then "" else tostring end)
@@ -168,6 +169,7 @@ while true; do
         -v grid_export_today_kwh="$grid_export_today_kwh" \
         -v house_power_w="$house_power_w" \
         -v battery_power_w="$battery_power_w" \
+        -v battery_current_a="$battery_current_a" \
         -v battery_soc_pct="$battery_soc_pct" \
         -v battery_charge_today_kwh="$battery_charge_today_kwh" \
         -v battery_discharge_today_kwh="$battery_discharge_today_kwh" \
@@ -178,9 +180,9 @@ while true; do
         -v inverter_temp_c="$inverter_temp_c" \
         -v inverter_mode="$inverter_mode" \
         -v inverter_state="$inverter_state" \
-        -v grid_l1_power_w="$grid_l1_power_w" \
-        -v grid_l2_power_w="$grid_l2_power_w" \
-        -v grid_l3_power_w="$grid_l3_power_w" \
+        -v inverter_l1_power_w="$inverter_l1_power_w" \
+        -v inverter_l2_power_w="$inverter_l2_power_w" \
+        -v inverter_l3_power_w="$inverter_l3_power_w" \
         -v pv1_voltage_v="$pv1_voltage_v" \
         -v pv2_voltage_v="$pv2_voltage_v" \
         -v pv1_current_a="$pv1_current_a" \
@@ -188,9 +190,9 @@ while true; do
         -v grid_l1_voltage_v="$grid_l1_voltage_v" \
         -v grid_l2_voltage_v="$grid_l2_voltage_v" \
         -v grid_l3_voltage_v="$grid_l3_voltage_v" \
-        -v grid_l1_current_a="$grid_l1_current_a" \
-        -v grid_l2_current_a="$grid_l2_current_a" \
-        -v grid_l3_current_a="$grid_l3_current_a" \
+        -v inverter_l1_current_a="$inverter_l1_current_a" \
+        -v inverter_l2_current_a="$inverter_l2_current_a" \
+        -v inverter_l3_current_a="$inverter_l3_current_a" \
         -v grid_frequency_l1_hz="$grid_frequency_l1_hz" \
         -v grid_frequency_l2_hz="$grid_frequency_l2_hz" \
         -v grid_frequency_l3_hz="$grid_frequency_l3_hz" \
@@ -202,14 +204,14 @@ INSERT INTO solax_raw (
   production_dc_today_kwh, yield_ac_today_kwh,
   grid_power_w, grid_import_today_kwh, grid_export_today_kwh,
   house_power_w,
-  battery_power_w, battery_soc_pct,
+  battery_power_w, battery_current_a, battery_soc_pct,
   battery_charge_today_kwh, battery_discharge_today_kwh,
   battery_stored_energy_kwh, battery_temp_c, battery_voltage_v,
   inverter_power_w, inverter_temp_c, inverter_mode, inverter_state,
-  grid_l1_power_w, grid_l2_power_w, grid_l3_power_w,
+  inverter_l1_power_w, inverter_l2_power_w, inverter_l3_power_w,
   pv1_voltage_v, pv2_voltage_v, pv1_current_a, pv2_current_a,
   grid_l1_voltage_v, grid_l2_voltage_v, grid_l3_voltage_v,
-  grid_l1_current_a, grid_l2_current_a, grid_l3_current_a,
+  inverter_l1_current_a, inverter_l2_current_a, inverter_l3_current_a,
   grid_frequency_l1_hz, grid_frequency_l2_hz, grid_frequency_l3_hz,
   raw_payload
 ) VALUES (
@@ -225,6 +227,7 @@ INSERT INTO solax_raw (
   NULLIF(:'grid_export_today_kwh','')::double precision,
   NULLIF(:'house_power_w','')::double precision,
   NULLIF(:'battery_power_w','')::double precision,
+  NULLIF(:'battery_current_a','')::double precision,
   NULLIF(:'battery_soc_pct','')::double precision,
   NULLIF(:'battery_charge_today_kwh','')::double precision,
   NULLIF(:'battery_discharge_today_kwh','')::double precision,
@@ -235,9 +238,9 @@ INSERT INTO solax_raw (
   NULLIF(:'inverter_temp_c','')::double precision,
   NULLIF(:'inverter_mode','')::integer,
   NULLIF(:'inverter_state',''),
-  NULLIF(:'grid_l1_power_w','')::double precision,
-  NULLIF(:'grid_l2_power_w','')::double precision,
-  NULLIF(:'grid_l3_power_w','')::double precision,
+  NULLIF(:'inverter_l1_power_w','')::double precision,
+  NULLIF(:'inverter_l2_power_w','')::double precision,
+  NULLIF(:'inverter_l3_power_w','')::double precision,
   NULLIF(:'pv1_voltage_v','')::double precision,
   NULLIF(:'pv2_voltage_v','')::double precision,
   NULLIF(:'pv1_current_a','')::double precision,
@@ -245,9 +248,9 @@ INSERT INTO solax_raw (
   NULLIF(:'grid_l1_voltage_v','')::double precision,
   NULLIF(:'grid_l2_voltage_v','')::double precision,
   NULLIF(:'grid_l3_voltage_v','')::double precision,
-  NULLIF(:'grid_l1_current_a','')::double precision,
-  NULLIF(:'grid_l2_current_a','')::double precision,
-  NULLIF(:'grid_l3_current_a','')::double precision,
+  NULLIF(:'inverter_l1_current_a','')::double precision,
+  NULLIF(:'inverter_l2_current_a','')::double precision,
+  NULLIF(:'inverter_l3_current_a','')::double precision,
   NULLIF(:'grid_frequency_l1_hz','')::double precision,
   NULLIF(:'grid_frequency_l2_hz','')::double precision,
   NULLIF(:'grid_frequency_l3_hz','')::double precision,

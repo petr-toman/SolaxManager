@@ -60,16 +60,16 @@ import/export and charge/discharge energy.
 | `battery_stored_energy_kwh` | `Data[106] / 10` | kWh |
 | `battery_temp_c` | signed `Data[105]` | °C |
 | `battery_voltage_v` | unsigned 32-bit `Data[170:169] / 100` | V |
-| `battery_current_a` | not mapped for inverter type 14 | A |
+| `battery_current_a` | signed `Data[40] / 100` | A |
 | `inverter_power_w` | signed `Data[9]` | W |
 | `inverter_temp_c` | `Data[54]` | °C |
 | `inverter_mode` | `Data[19]` | enum |
 | `inverter_state` | decoded `Data[19]` | text |
-| phase powers | signed `Data[6..8]` | W |
+| inverter phase powers | signed `Data[6..8]` | W |
 | PV voltages | `Data[10..11] / 10` | V |
 | PV currents | `Data[12..13] / 10` | A |
 | grid voltages | `Data[0..2] / 10` | V |
-| grid currents | signed `Data[3..5] / 10` | A |
+| inverter AC phase currents | signed `Data[3..5] / 10` | A |
 | grid frequencies | `Data[16..18] / 100` | Hz |
 
 Values not yet independently verified against the physical installation remain
@@ -142,6 +142,8 @@ database and the four configuration variables above.
 ```
 
 Battery voltage is mapped from the same type-14 local API mapping used by the
-legacy project. No independently documented raw battery-current field has been
-found for type 14, so `battery_current_a` intentionally remains NULL rather
-than storing a derived estimate as if it were a measured value.
+legacy project. Battery current is measured directly as signed `Data[40] / 100`
+A; its sign follows battery power (positive charging, negative discharging).
+`Data[6..8]` and `Data[3..5]` are stored as inverter AC phase power/current,
+not as the actual per-phase grid flow. Actual grid L1/L2/L3 flow will come from
+the independent AZ Router CT telemetry.

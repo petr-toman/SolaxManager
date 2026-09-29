@@ -40,6 +40,10 @@ the new migration explicitly with `psql` rather than deleting the volume.
 - `energy_day`
 - `controller_action`
 
+Migration `003_solax_phase_semantics.sql` preserves existing measurements while renaming
+SolaX phase power/current columns from `grid_*` to `inverter_*`, reflecting the
+validated physical semantics. The true per-phase grid flow will be stored from AZ Router CT data.
+
 The M0.1 SolaX schema is intentionally broader than the first UI requirements:
 raw acquisition should retain the useful telemetry now so later reporter logic
 does not depend on data that were never collected.
