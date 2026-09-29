@@ -19,84 +19,94 @@ DB_KWARGS = {
     "connect_timeout": 3,
 }
 
-LATEST_SQL = """
+LATEST_SOLAX_SQL = """
 SELECT
     measured_at,
     serial_number,
     api_version,
     inverter_type,
-
-    pv1_power_w,
-    pv2_power_w,
-    pv_total_power_w,
-    production_dc_today_kwh,
-    yield_ac_today_kwh,
-
+    pv1_power_w, pv2_power_w, pv_total_power_w,
+    production_dc_today_kwh, yield_ac_today_kwh,
     house_power_w,
-
-    grid_power_w,
-    grid_import_today_kwh,
-    grid_export_today_kwh,
-
-    battery_power_w,
-    battery_soc_pct,
-    battery_voltage_v,
-    battery_current_a,
-    battery_stored_energy_kwh,
-    battery_temp_c,
-    battery_charge_today_kwh,
-    battery_discharge_today_kwh,
-
-    inverter_power_w,
-    inverter_temp_c,
-    inverter_mode,
-    inverter_state,
-
-    inverter_l1_power_w,
-    inverter_l2_power_w,
-    inverter_l3_power_w,
-    grid_l1_voltage_v,
-    grid_l2_voltage_v,
-    grid_l3_voltage_v,
-    inverter_l1_current_a,
-    inverter_l2_current_a,
-    inverter_l3_current_a,
-    grid_frequency_l1_hz,
-    grid_frequency_l2_hz,
-    grid_frequency_l3_hz,
-
-    pv1_voltage_v,
-    pv2_voltage_v,
-    pv1_current_a,
-    pv2_current_a
+    grid_power_w, grid_import_today_kwh, grid_export_today_kwh,
+    battery_power_w, battery_soc_pct, battery_voltage_v, battery_current_a,
+    battery_stored_energy_kwh, battery_temp_c,
+    battery_charge_today_kwh, battery_discharge_today_kwh,
+    inverter_power_w, inverter_temp_c, inverter_mode, inverter_state,
+    inverter_l1_power_w, inverter_l2_power_w, inverter_l3_power_w,
+    grid_l1_voltage_v, grid_l2_voltage_v, grid_l3_voltage_v,
+    inverter_l1_current_a, inverter_l2_current_a, inverter_l3_current_a,
+    grid_frequency_l1_hz, grid_frequency_l2_hz, grid_frequency_l3_hz,
+    pv1_voltage_v, pv2_voltage_v, pv1_current_a, pv2_current_a
 FROM solax_raw
 ORDER BY measured_at DESC
 LIMIT 1
 """
 
+LATEST_AZROUTER_SQL = """
+SELECT
+    measured_at,
+    device_last_update,
+    grid_l1_power_w, grid_l2_power_w, grid_l3_power_w, grid_total_power_w,
+    grid_l1_voltage_v, grid_l2_voltage_v, grid_l3_voltage_v,
+    grid_l1_current_a, grid_l2_current_a, grid_l3_current_a,
+    output_0_power_w, output_1_power_w, output_2_power_w, output_3_power_w
+FROM azrouter_raw
+ORDER BY measured_at DESC
+LIMIT 1
+"""
+
+
+def sample_age(measured_at):
+    now = datetime.now(timezone.utc)
+    return max(0.0, (now - measured_at).total_seconds())
+
 
 def latest_sample():
     with psycopg.connect(**DB_KWARGS, row_factory=dict_row) as conn:
         with conn.cursor() as cur:
-            cur.execute(LATEST_SQL)
-            row = cur.fetchone()
+            cur.execute(LATEST_SOLAX_SQL)
+            solax = cur.fetchone()
 
-    if row is None:
+            cur.execute(LATEST_AZROUTER_SQL)
+            azrouter = cur.fetchone()
+
+    if solax is None:
         return None
 
-    measured_at = row["measured_at"]
-    now = datetime.now(timezone.utc)
-    age_seconds = max(0.0, (now - measured_at).total_seconds())
+    data = dict(solax)
+    solax_age = sample_age(solax["measured_at"])
+    data["measured_at"] = solax["measured_at"].isoformat()
+    data["sample_age_seconds"] = round(solax_age, 3)
+    data["stale"] = solax_age > STALE_AFTER_SECONDS
 
-    data = dict(row)
-    data["measured_at"] = measured_at.isoformat()
-    data["sample_age_seconds"] = round(age_seconds, 3)
-    data["stale"] = age_seconds > STALE_AFTER_SECONDS
+    if azrouter is None:
+        data["azrouter_available"] = False
+        data["azrouter_stale"] = True
+        data["azrouter_sample_age_seconds"] = None
+        data["azrouter_measured_at"] = None
+    else:
+        az = dict(azrouter)
+        az_age = sample_age(az["measured_at"])
+        data["azrouter_available"] = True
+        data["azrouter_stale"] = az_age > STALE_AFTER_SECONDS
+        data["azrouter_sample_age_seconds"] = round(az_age, 3)
+        data["azrouter_measured_at"] = az["measured_at"].isoformat()
+        data["azrouter_device_last_update"] = (
+            az["device_last_update"].isoformat()
+            if az["device_last_update"] is not None
+            else None
+        )
+
+        for key, value in az.items():
+            if key not in {"measured_at", "device_last_update"}:
+                data[f"azrouter_{key}"] = value
+
     return data
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SolaxManagerTelemetry/0.1"
+    server_version = "SolaxManagerTelemetry/0.2"
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}", flush=True)
