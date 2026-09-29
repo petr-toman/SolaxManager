@@ -35,7 +35,7 @@ the new migration explicitly with `psql` rather than deleting the volume.
 ## Initial tables
 
 - `solax_raw` – normalized SolaX measurements plus original JSON payload
-- `azrouter_raw`
+- `azrouter_raw` – high-frequency AZ Router CT/grid telemetry plus original JSON payload
 - `energy_15m`
 - `energy_day`
 - `controller_action`
@@ -47,3 +47,14 @@ validated physical semantics. The true per-phase grid flow will be stored from A
 The M0.1 SolaX schema is intentionally broader than the first UI requirements:
 raw acquisition should retain the useful telemetry now so later reporter logic
 does not depend on data that were never collected.
+
+
+## AZ Router raw telemetry
+
+Migration `004_azrouter_telemetry.sql` adds normalized L1/L2/L3 grid power,
+voltage and current, their aggregate power, AZ output-channel powers and the
+device-reported update timestamp. The source JSON is preserved in every row.
+
+These 5-second samples are the raw buffer. The reporter will later create
+1-minute and 15-minute aggregates and integrate import/export energy separately
+so simultaneous import on one phase and export on another are not lost.
