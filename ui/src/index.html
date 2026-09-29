@@ -128,7 +128,9 @@
         <div class="hero"><span id="pv-total">—</span> <span class="unit">W</span></div>
         <div class="rows">
           <div class="row"><span>String 1</span><span class="value" id="pv1">—</span></div>
+          <div class="row"><span>String 1 napětí</span><span class="value" id="pv1-voltage">—</span></div>
           <div class="row"><span>String 2</span><span class="value" id="pv2">—</span></div>
+          <div class="row"><span>String 2 napětí</span><span class="value" id="pv2-voltage">—</span></div>
           <div class="row"><span>Dnes DC</span><span class="value" id="pv-today">—</span></div>
         </div>
       </section>
@@ -222,7 +224,9 @@
     function render(d) {
       set('pv-total', n(d.pv_total_power_w));
       set('pv1', n(d.pv1_power_w, 0, 'W'));
+      set('pv1-voltage', n(d.pv1_voltage_v, 1, 'V'));
       set('pv2', n(d.pv2_power_w, 0, 'W'));
+      set('pv2-voltage', n(d.pv2_voltage_v, 1, 'V'));
       set('pv-today', n(d.production_dc_today_kwh, 1, 'kWh'));
 
       set('soc', n(d.battery_soc_pct));
