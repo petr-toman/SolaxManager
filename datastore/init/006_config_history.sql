@@ -33,10 +33,6 @@ CREATE TABLE IF NOT EXISTS solax_config (
         DEFERRABLE INITIALLY DEFERRED
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_solax_config_current
-    ON solax_config ((1))
-    WHERE enddat IS NULL;
-
 CREATE INDEX IF NOT EXISTS idx_solax_config_validity
     ON solax_config USING gist (validity);
 
@@ -104,10 +100,6 @@ CREATE TABLE IF NOT EXISTS azrouter_config (
         )
         DEFERRABLE INITIALLY DEFERRED
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_azrouter_config_current
-    ON azrouter_config (scope, device_id)
-    WHERE enddat IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_azrouter_config_validity
     ON azrouter_config USING gist (scope, device_id, validity);
