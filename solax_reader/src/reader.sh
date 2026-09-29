@@ -301,7 +301,7 @@ SQL
         ' 2>/dev/null || true
       )"
 
-      if [[ -z "$config_data" ]] || ! echo "$config_data" | jq -e 'length > 190' >/dev/null 2>&1; then
+      if [[ -z "$config_data" ]] || ! echo "$config_data" | jq -e 'length > 185' >/dev/null 2>&1; then
         log "ReadSetData response missing or not recognized"
       else
         config_mapped="$(
@@ -322,8 +322,7 @@ SQL
               forced_charge_end_raw: (.[37] // null),
               allowed_discharge_start_raw: (.[38] // null),
               allowed_discharge_end_raw: (.[39] // null),
-              hot_standby_code: (.[185] // null),
-              phase_unbalanced_code: (.[190] // null)
+              hot_standby_code: (.[185] // null)
             }
           '
         )"
@@ -331,23 +330,21 @@ SQL
         IFS=$'\t' read -r \
           work_mode_code work_mode min_soc_pct charge_from_grid charge_to_soc_pct \
           forced_charge_start_raw forced_charge_end_raw \
-          allowed_discharge_start_raw allowed_discharge_end_raw hot_standby_code phase_unbalanced_code \
+          allowed_discharge_start_raw allowed_discharge_end_raw hot_standby_code \
           <<< "$(
             echo "$config_mapped" | jq -r '
               [
                 .work_mode_code, .work_mode, .min_soc_pct, .charge_from_grid,
                 .charge_to_soc_pct, .forced_charge_start_raw, .forced_charge_end_raw,
                 .allowed_discharge_start_raw, .allowed_discharge_end_raw,
-                .hot_standby_code, .phase_unbalanced_code
+                .hot_standby_code
               ]
               | map(if . == null then "" else tostring end)
               | @tsv
             '
           )"
 
-        if [[ "$phase_unbalanced_code" != "0" && "$phase_unbalanced_code" != "1" ]]; then
-          log "unknown Phase Unbalanced code at ReadSetData[190]: ${phase_unbalanced_code:-empty}; config version skipped"
-        elif config_result="$(
+        if config_result="$(
           psql "$DATABASE_URL" -X -A -t -q -v ON_ERROR_STOP=1 \
             -v observed_at="$config_measured_at" \
             -v work_mode_code="$work_mode_code" \
@@ -359,8 +356,7 @@ SQL
             -v forced_charge_end_raw="$forced_charge_end_raw" \
             -v allowed_discharge_start_raw="$allowed_discharge_start_raw" \
             -v allowed_discharge_end_raw="$allowed_discharge_end_raw" \
-            -v hot_standby_code="$hot_standby_code" \
-            -v phase_unbalanced_code="$phase_unbalanced_code" <<'SQL'
+            -v hot_standby_code="$hot_standby_code" <<'SQL'
 WITH candidate AS (
   SELECT
     :'observed_at'::timestamptz AS begdat,
@@ -401,13 +397,7 @@ WITH candidate AS (
       WHEN 1 THEN FALSE
       ELSE NULL
     END AS hot_standby,
-    NULLIF(:'hot_standby_code','')::integer AS hot_standby_code,
-    CASE NULLIF(:'phase_unbalanced_code','')::integer
-      WHEN 0 THEN TRUE
-      WHEN 1 THEN FALSE
-      ELSE NULL
-    END AS phase_unbalanced,
-    NULLIF(:'phase_unbalanced_code','')::integer AS phase_unbalanced_code
+    NULLIF(:'hot_standby_code','')::integer AS hot_standby_code
 ),
 current AS (
   SELECT *
@@ -424,15 +414,13 @@ needs_change AS (
       c.charge_from_grid, c.charge_to_soc_pct,
       c.forced_charge_start, c.forced_charge_end,
       c.allowed_discharge_start, c.allowed_discharge_end,
-      c.hot_standby, c.hot_standby_code,
-      c.phase_unbalanced, c.phase_unbalanced_code
+      c.hot_standby, c.hot_standby_code
     ) IS NOT DISTINCT FROM ROW(
       n.work_mode_code, n.work_mode, n.min_soc_pct,
       n.charge_from_grid, n.charge_to_soc_pct,
       n.forced_charge_start, n.forced_charge_end,
       n.allowed_discharge_start, n.allowed_discharge_end,
-      n.hot_standby, n.hot_standby_code,
-      n.phase_unbalanced, n.phase_unbalanced_code
+      n.hot_standby, n.hot_standby_code
     )
   ) AS value
 ),
@@ -449,8 +437,7 @@ INSERT INTO solax_config (
   charge_from_grid, charge_to_soc_pct,
   forced_charge_start, forced_charge_end,
   allowed_discharge_start, allowed_discharge_end,
-  hot_standby, hot_standby_code,
-  phase_unbalanced, phase_unbalanced_code
+  hot_standby, hot_standby_code
 )
 SELECT
   begdat, NULL,
@@ -458,15 +445,14 @@ SELECT
   charge_from_grid, charge_to_soc_pct,
   forced_charge_start, forced_charge_end,
   allowed_discharge_start, allowed_discharge_end,
-  hot_standby, hot_standby_code,
-  phase_unbalanced, phase_unbalanced_code
+  hot_standby, hot_standby_code
 FROM candidate
 WHERE (SELECT value FROM needs_change)
 RETURNING id;
 SQL
         )"; then
           if [[ -n "$config_result" ]]; then
-            log "configuration changed; stored new solax_config version id=$config_result phase_unbalanced=$([[ "$phase_unbalanced_code" == "0" ]] && echo enabled || echo disabled)"
+            log "configuration changed; stored new solax_config version id=$config_result"
           fi
         else
           log "failed to version SolaX configuration"

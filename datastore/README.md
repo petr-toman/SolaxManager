@@ -112,3 +112,10 @@ constraints and were checked too early for the atomic close+insert versioning
 statement. The exclusion constraints remain the database guarantee that
 configuration validity ranges do not overlap, including open-ended current
 versions.
+
+
+Migration `010_clear_unverified_phase_unbalanced.sql` clears previously stored
+Phase Unbalanced values. The columns remain reserved, but the reader no longer
+maps `ReadSetData[190]` because a live toggle test proved that index does not
+represent this setting. The mapping will be restored only after an empirical
+before/after settings-array diff identifies the correct index.
