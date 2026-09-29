@@ -39,6 +39,8 @@ the new migration explicitly with `psql` rather than deleting the volume.
 - `azrouter_device_raw` – lower-frequency paired-device/boiler telemetry plus original device JSON
 - `energy_15m`
 - `energy_day`
+- `solax_config` – versioned selected SolaX configuration
+- `azrouter_config` – versioned router/device configuration in one table
 - `controller_action`
 
 Migration `003_solax_phase_semantics.sql` preserves existing measurements while renaming
@@ -67,3 +69,20 @@ Migration `005_azrouter_devices.sql` creates `azrouter_device_raw`. One row is
 stored per paired device on each device poll. Current-state fields are
 normalized for telemetry, while the complete device object (including both
 settings profiles) remains available in `raw_payload`.
+
+
+## Versioned configuration history
+
+Migration `006_config_history.sql` creates `solax_config` and
+`azrouter_config`.
+
+Both use:
+
+- explicit `begdat TIMESTAMPTZ` / `enddat TIMESTAMPTZ`
+- generated `validity TSTZRANGE = [begdat,enddat)`
+- `NULL enddat` for the current version
+- GiST exclusion constraints so validity ranges cannot overlap
+
+Readers insert a version only when tracked normalized settings change. This
+keeps configuration history compact while making temporal joins straightforward,
+for example `raw.measured_at <@ config.validity`.
