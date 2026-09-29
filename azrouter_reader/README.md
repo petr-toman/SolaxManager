@@ -72,8 +72,10 @@ different phases may import and export simultaneously.
 ## Configuration
 
 - `AZROUTER_URL` – base URL / IP of AZ Router
-- `AZROUTER_POLL_INTERVAL_SECONDS` – power poll period, default 5 seconds
-- `AZROUTER_DEVICES_EVERY_N_POLLS` – poll devices every N power loops, default 3
+- `READER_BASE_INTERVAL_SECONDS` – base loop wait, default 5 seconds
+- `AZROUTER_POWER_EVERY_N_LOOPS` – poll `/power` every N loops, default 1
+- `AZROUTER_DEVICES_EVERY_N_LOOPS` – poll operational `/devices`, default 3
+- `AZROUTER_CONFIG_EVERY_N_LOOPS` – version tracked config, default 12
 - `DATABASE_URL` – PostgreSQL connection string
 - `RUN_ONCE=true` – optional one-shot reader test
 
@@ -103,3 +105,28 @@ Known status mapping from the Home Assistant integration:
 3 error
 4 active
 ```
+
+
+## Versioned configuration
+
+Configuration uses the same reader loop but a slower multiplier. On a config
+iteration the reader:
+
+1. reuses a single `/api/v1/devices` response for device state/config,
+2. reads `/api/v1/settings` for mapped router-level settings,
+3. compares only normalized fields SolaxManager currently tracks,
+4. writes a new `azrouter_config` version only when those fields changed.
+
+The table is deliberately denormalized and contains both router scope
+(`scope=router, device_id=0`) and device scope (`scope=device, device_id>0`).
+For the current Smart Slave / boiler, both settings profiles are stored in the
+same version row. The profile names remain neutral (`profile1/profile2`) until
+master mode semantics are mapped.
+
+Tracked boiler settings currently include name/priority, connected phases,
+maximum power, target/BOOST temperature, allowed solar-heating window,
+solar/battery blocking flags, offline/ignore-cycle flags and BOOST mode.
+
+Historical rows use explicit `begdat/enddat` plus generated PostgreSQL
+`tstzrange validity`. GiST exclusion constraints prevent overlapping versions
+for the same configuration scope/device.
