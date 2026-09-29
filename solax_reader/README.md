@@ -93,7 +93,7 @@ The reader uses one loop. With the defaults below, realtime data is read every
 
 `ReadSetData` is normalized only for settings SolaxManager currently cares
 about: work mode, MinSOC, grid charging/target SOC, forced-charge and allowed
-discharge windows, and Hot Standby.
+discharge windows, Phase Unbalanced, and Hot Standby.
 
 The reader compares these normalized values with the open row in
 `solax_config`. If they are identical, nothing is written. If they changed,
@@ -167,8 +167,17 @@ the independent AZ Router CT telemetry.
 
 ### Phase Unbalanced
 
-The database already reserves `phase_unbalanced` fields, but the local
-`ReadSetData` index is intentionally not mapped yet. Index 190 was tested on
-the target inverter and did not change when Phase Unbalanced was toggled, so it
-must not be used for this setting. The correct index will be added only after a
-before/after `ReadSetData` diff isolates it empirically.
+The target X3-Hybrid G4 was tested with two full `ReadSetData` snapshots,
+changing only Phase Unbalanced between them. The only non-clock setting that
+changed was:
+
+```text
+ReadSetData[116]
+0 = disabled
+1 = enabled
+```
+
+`ReadSetData[24]` also changed during the test, but that field is the packed
+inverter minute/second RTC value and therefore changes naturally with time.
+Index 116 is therefore the empirically verified local API mapping used by the
+reader and controller.

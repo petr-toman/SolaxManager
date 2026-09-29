@@ -28,6 +28,7 @@ IDX_FORCED_CHARGE_START = 36
 IDX_FORCED_CHARGE_END = 37
 IDX_ALLOWED_DISCHARGE_START = 38
 IDX_ALLOWED_DISCHARGE_END = 39
+IDX_PHASE_UNBALANCED = 116
 IDX_HOT_STANDBY = 185
 
 WORK_MODES = {
@@ -42,6 +43,12 @@ HOT_STANDBY = {
     1: False,
 }
 
+# Empirically verified by before/after ReadSetData diff on the target inverter:
+#   disabled -> 0, enabled -> 1
+PHASE_UNBALANCED = {
+    0: False,
+    1: True,
+}
 
 
 class SolaxConfigError(RuntimeError):
@@ -60,6 +67,8 @@ class SolaxConfig:
     forced_charge_end: str
     allowed_discharge_start: str
     allowed_discharge_end: str
+    phase_unbalanced: bool
+    phase_unbalanced_code: int
     hot_standby: bool
     hot_standby_code: int
 
@@ -142,7 +151,13 @@ def read_set_data() -> list[int]:
 
 def parse_config(data: list[int]) -> SolaxConfig:
     work_mode_code = data[IDX_WORK_MODE]
+    phase_unbalanced_code = data[IDX_PHASE_UNBALANCED]
     hot_standby_code = data[IDX_HOT_STANDBY]
+
+    if phase_unbalanced_code not in PHASE_UNBALANCED:
+        raise SolaxConfigError(
+            f"Unknown phase_unbalanced code {phase_unbalanced_code}; refusing to guess"
+        )
 
     if hot_standby_code not in HOT_STANDBY:
         raise SolaxConfigError(
@@ -161,6 +176,8 @@ def parse_config(data: list[int]) -> SolaxConfig:
         forced_charge_end=decode_hhmm(data[IDX_FORCED_CHARGE_END]),
         allowed_discharge_start=decode_hhmm(data[IDX_ALLOWED_DISCHARGE_START]),
         allowed_discharge_end=decode_hhmm(data[IDX_ALLOWED_DISCHARGE_END]),
+        phase_unbalanced=PHASE_UNBALANCED[phase_unbalanced_code],
+        phase_unbalanced_code=phase_unbalanced_code,
         hot_standby=HOT_STANDBY[hot_standby_code],
         hot_standby_code=hot_standby_code,
     )
@@ -198,6 +215,7 @@ def run_get(name: str) -> int:
             "allowed_discharge_end",
             config.allowed_discharge_end,
         ),
+        "phase_unbalanced": ("phase_unbalanced", config.phase_unbalanced),
         "hot_standby": ("hot_standby", config.hot_standby),
         "inverter_time": ("inverter_time", config.inverter_time),
     }

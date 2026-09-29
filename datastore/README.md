@@ -119,3 +119,10 @@ Phase Unbalanced values. The columns remain reserved, but the reader no longer
 maps `ReadSetData[190]` because a live toggle test proved that index does not
 represent this setting. The mapping will be restored only after an empirical
 before/after settings-array diff identifies the correct index.
+
+
+The Phase Unbalanced mapping was subsequently verified by a controlled
+before/after `ReadSetData` diff on the target inverter: index 116 changes
+0→1 when the setting changes Disabled→Enabled. Index 24 changed at the same
+time because it is the inverter RTC minute/second field. The reader/controller
+therefore use `ReadSetData[116]` with 0=false and 1=true.
