@@ -4,11 +4,12 @@ Autonomous reader for the local SolaX inverter API.
 
 ## Responsibility
 
-- poll the inverter at a configurable interval, initially every 5 seconds
+- run one configurable base loop and poll each SolaX endpoint every N-th loop
 - parse the device-specific response
 - convert SolaX `Data[]` values to normalized engineering units and meaningful field names
 - store one normalized raw measurement in PostgreSQL
-- preserve the original response in `raw_payload` for diagnostics and future remapping
+- preserve realtime responses in `raw_payload` for diagnostics and future remapping
+- read selected configuration through `ReadSetData` and version only meaningful changes
 - never change inverter configuration
 
 ## Current protocol
@@ -75,15 +76,31 @@ import/export and charge/discharge energy.
 Values not yet independently verified against the physical installation remain
 traceable because every sample also stores the original JSON payload.
 
-## Configuration
+## Polling configuration
 
-Environment variables:
+The reader uses one loop. With the defaults below, realtime data is read every
+5 seconds and tracked configuration about every 60 seconds:
 
+- `READER_BASE_INTERVAL_SECONDS=5`
+- `SOLAX_REALTIME_EVERY_N_LOOPS=1`
+- `SOLAX_CONFIG_EVERY_N_LOOPS=12`
 - `SOLAX_URL`
 - `SOLAX_PASSWORD`
-- `POLL_INTERVAL_SECONDS`
 - `DATABASE_URL`
-- `RUN_ONCE=true` – useful for one-shot development testing
+- `RUN_ONCE=true` – one-shot test; loop 0 runs all configured reads
+
+## Versioned configuration
+
+`ReadSetData` is normalized only for settings SolaxManager currently cares
+about: work mode, MinSOC, grid charging/target SOC, forced-charge and allowed
+discharge windows, and Hot Standby.
+
+The reader compares these normalized values with the open row in
+`solax_config`. If they are identical, nothing is written. If they changed,
+the previous row is closed with `enddat` and a new open-ended row is inserted.
+`validity` is a generated PostgreSQL `tstzrange` using `[begdat,enddat)`.
+
+Unmapped SolaX settings do not create new configuration versions.
 
 ## Failure behaviour
 
