@@ -102,3 +102,13 @@ constraints on both configuration-history tables to
 change atomically closes the current open-ended range and inserts its successor
 in one statement. The overlap invariant is still enforced, but it is checked at
 transaction end, after both parts of the version change are complete.
+
+
+### Current-row uniqueness
+
+Migration `009_drop_immediate_current_indexes.sql` removes the partial unique
+indexes on current rows. They were redundant with the deferred GiST exclusion
+constraints and were checked too early for the atomic close+insert versioning
+statement. The exclusion constraints remain the database guarantee that
+configuration validity ranges do not overlap, including open-ended current
+versions.
