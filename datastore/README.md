@@ -92,3 +92,13 @@ Migration `007_solax_phase_unbalanced_config.sql` extends `solax_config`
 with `phase_unbalanced` and its source code. Because configuration history is
 change-only, the first poll after this migration creates a new version that
 establishes when this newly tracked value was first observed.
+
+
+### Deferred temporal exclusion constraints
+
+Migration `008_defer_config_overlap_constraints.sql` changes the GiST overlap
+constraints on both configuration-history tables to
+`DEFERRABLE INITIALLY DEFERRED`. This is required because a configuration
+change atomically closes the current open-ended range and inserts its successor
+in one statement. The overlap invariant is still enforced, but it is checked at
+transaction end, after both parts of the version change are complete.

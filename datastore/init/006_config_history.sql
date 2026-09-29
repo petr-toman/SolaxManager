@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS solax_config (
         CHECK (enddat IS NULL OR enddat > begdat),
     CONSTRAINT solax_config_no_overlap
         EXCLUDE USING gist (validity WITH &&)
+        DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_solax_config_current
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS azrouter_config (
             device_id WITH =,
             validity WITH &&
         )
+        DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_azrouter_config_current
