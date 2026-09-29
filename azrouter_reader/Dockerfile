@@ -1,6 +1,8 @@
-FROM python:3.13-alpine
+FROM alpine:3.22
+
+RUN apk add --no-cache bash curl jq postgresql-client
 
 WORKDIR /app
-COPY src/reader.py /app/reader.py
+COPY src/reader.sh /app/reader.sh
 
-CMD ["python", "-u", "/app/reader.py"]
+CMD ["bash", "/app/reader.sh"]
