@@ -15,6 +15,12 @@ services:
     volumes:
       - ./azrouter_reader/src:/app:ro
 
+  solar_forecast_reader:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./solar_forecast_reader/src:/app:ro
+
   reporter:
     environment:
       APP_ENV: development
