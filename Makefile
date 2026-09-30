@@ -4,7 +4,7 @@ COMPOSE_BASE := docker compose -f docker-compose.yml
 COMPOSE_DEV  := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 COMPOSE_PROD := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 
-.PHONY: help up dev prod down rebuild rebuild-dev rebuild-prod logs logs-solax logs-azrouter logs-api logs-controller ps db initialize
+.PHONY: help up dev prod down rebuild rebuild-dev rebuild-prod logs logs-solax logs-azrouter logs-forecast logs-api logs-controller ps db initialize
 
 help:
 	@printf '%s\n' 'Použití: make <příkaz>'
@@ -20,6 +20,7 @@ help:
 	@printf '%s\n' '  logs            Sleduje logy všech služeb'
 	@printf '%s\n' '  logs-solax      Sleduje log solax_reader'
 	@printf '%s\n' '  logs-azrouter   Sleduje log azrouter_reader'
+	@printf '%s\n' '  logs-forecast   Sleduje log solar_forecast_reader'
 	@printf '%s\n' '  logs-api        Sleduje log telemetry_api'
 	@printf '%s\n' '  logs-controller Sleduje log controlleru'
 	@printf '%s\n' '  ps              Zobrazí stav služeb'
@@ -61,6 +62,9 @@ logs-solax:
 
 logs-azrouter:
 	$(COMPOSE_BASE) logs -f --tail=100 azrouter_reader
+
+logs-forecast:
+	$(COMPOSE_BASE) logs -f --tail=100 solar_forecast_reader
 
 logs-api:
 	$(COMPOSE_BASE) logs -f --tail=100 telemetry_api
