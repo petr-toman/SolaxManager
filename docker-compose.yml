@@ -48,6 +48,25 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+
+  solar_forecast_reader:
+    build:
+      context: ./solar_forecast_reader
+    container_name: solaxmanager-solar-forecast-reader
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
+      SOLAR_FORECAST_LAT: ${SOLAR_FORECAST_LAT:-}
+      SOLAR_FORECAST_LON: ${SOLAR_FORECAST_LON:-}
+      SOLAR_PANEL_TILT_DEG: ${SOLAR_PANEL_TILT_DEG:-}
+      SOLAR_PANEL_AZIMUTH_DEG: ${SOLAR_PANEL_AZIMUTH_DEG:-}
+      SOLAR_FORECAST_BASE_INTERVAL_SECONDS: ${SOLAR_FORECAST_BASE_INTERVAL_SECONDS:-300}
+      OPENMETEO_EVERY_N_LOOPS: ${OPENMETEO_EVERY_N_LOOPS:-12}
+      OPENMETEO_FORECAST_HOURS: ${OPENMETEO_FORECAST_HOURS:-72}
+    depends_on:
+      datastore:
+        condition: service_healthy
+    restart: unless-stopped
+
   reporter:
     build:
       context: ./reporter
