@@ -1,112 +1,102 @@
--- M1.8: rebuildable, canonical 15-minute energy integration table.
+-- M1.8: canonical 15-minute energy integration.
 --
--- energy_15m is derived data. The original scaffold table is deliberately
--- replaced on the first application of this migration rather than shifting
--- already-derived timestamps in place. Reporter backfills the new table from
--- raw telemetry, which is the source of truth.
+-- Upgrade the original energy_15m scaffold in place. The reporter then
+-- backfills/recalculates derived values from raw telemetry.
 --
--- Re-running this migration is safe: once the legacy pv_kwh column is gone,
--- the existing rich energy_15m table is preserved.
-
-DO $
-BEGIN
-    -- The old table was only a reporter scaffold. Drop it instead of renaming
-    -- it: PostgreSQL would otherwise keep the old energy_15m_pkey index name,
-    -- which would collide with the replacement table's primary key.
-    IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'energy_15m'
-          AND column_name = 'pv_kwh'
-    ) THEN
-        DROP TABLE energy_15m;
-    END IF;
-
-    -- Recovery for an interrupted early revision of this migration.
-    IF to_regclass('public.energy_15m_legacy_012') IS NOT NULL THEN
-        DROP TABLE energy_15m_legacy_012;
-    END IF;
-END $;
+-- No PL/pgSQL dollar-quoted block is used here so the migration is plain SQL
+-- and can be piped directly to psql.
 
 CREATE TABLE IF NOT EXISTS energy_15m (
-    period_start TIMESTAMPTZ PRIMARY KEY,
-    period_end TIMESTAMPTZ NOT NULL,
-    validity TSTZRANGE GENERATED ALWAYS AS (
+    period_start TIMESTAMPTZ PRIMARY KEY
+);
+
+ALTER TABLE energy_15m
+    ADD COLUMN IF NOT EXISTS period_end TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS solax_first_sample_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS solax_last_sample_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS solax_sample_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS solax_max_gap_seconds DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS azrouter_sample_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS azrouter_max_gap_seconds DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS pv_dc_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS inverter_l1_ac_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS inverter_l2_ac_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS inverter_l3_ac_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS inverter_ac_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS solax_house_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS solax_grid_import_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS solax_grid_export_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS grid_l1_import_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_l1_export_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_l2_import_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_l2_export_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_l3_import_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_l3_export_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS grid_import_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_export_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS house_l1_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS house_l2_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS house_l3_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS house_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS battery_charge_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS battery_discharge_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS boiler_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS production_dc_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS production_dc_counter_end_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS yield_ac_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS yield_ac_counter_end_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_import_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_import_counter_end_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_export_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS grid_export_counter_end_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS battery_charge_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS battery_charge_counter_end_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS battery_discharge_counter_start_kwh DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS battery_discharge_counter_end_kwh DOUBLE PRECISION,
+
+    ADD COLUMN IF NOT EXISTS calculated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- The old scaffold did not calculate rows. If a local development database
+-- contains hand-made scaffold rows, align their period end to the canonical
+-- quarter-hour start before adding the constraints below.
+UPDATE energy_15m
+SET period_end = period_start + interval '15 minutes'
+WHERE period_end IS NULL;
+
+ALTER TABLE energy_15m
+    ALTER COLUMN period_end SET NOT NULL;
+
+ALTER TABLE energy_15m
+    ADD COLUMN IF NOT EXISTS validity TSTZRANGE GENERATED ALWAYS AS (
         tstzrange(period_start, period_end, '[)')
-    ) STORED,
+    ) STORED;
 
-    solax_first_sample_at TIMESTAMPTZ,
-    solax_last_sample_at TIMESTAMPTZ,
-    solax_sample_count INTEGER NOT NULL DEFAULT 0,
-    solax_max_gap_seconds DOUBLE PRECISION,
+ALTER TABLE energy_15m
+    DROP CONSTRAINT IF EXISTS energy_15m_exact_duration;
 
-    azrouter_sample_count INTEGER NOT NULL DEFAULT 0,
-    azrouter_max_gap_seconds DOUBLE PRECISION,
+ALTER TABLE energy_15m
+    ADD CONSTRAINT energy_15m_exact_duration
+        CHECK (period_end = period_start + interval '15 minutes');
 
-    -- SolaX DC / AC integration.
-    pv_dc_kwh DOUBLE PRECISION,
-    inverter_l1_ac_kwh DOUBLE PRECISION,
-    inverter_l2_ac_kwh DOUBLE PRECISION,
-    inverter_l3_ac_kwh DOUBLE PRECISION,
-    inverter_ac_kwh DOUBLE PRECISION,
+ALTER TABLE energy_15m
+    DROP CONSTRAINT IF EXISTS energy_15m_aligned_start;
 
-    -- Direct aggregate SolaX values retained for independent comparison.
-    solax_house_kwh DOUBLE PRECISION,
-    solax_grid_import_kwh DOUBLE PRECISION,
-    solax_grid_export_kwh DOUBLE PRECISION,
-
-    -- Primary grid integration from AZ Router CTs, phase first and then sum.
-    grid_l1_import_kwh DOUBLE PRECISION,
-    grid_l1_export_kwh DOUBLE PRECISION,
-    grid_l2_import_kwh DOUBLE PRECISION,
-    grid_l2_export_kwh DOUBLE PRECISION,
-    grid_l3_import_kwh DOUBLE PRECISION,
-    grid_l3_export_kwh DOUBLE PRECISION,
-    grid_import_kwh DOUBLE PRECISION,
-    grid_export_kwh DOUBLE PRECISION,
-
-    -- Derived per-phase household consumption:
-    -- inverter AC + grid import - grid export.
-    house_l1_kwh DOUBLE PRECISION,
-    house_l2_kwh DOUBLE PRECISION,
-    house_l3_kwh DOUBLE PRECISION,
-    house_kwh DOUBLE PRECISION,
-
-    battery_charge_kwh DOUBLE PRECISION,
-    battery_discharge_kwh DOUBLE PRECISION,
-
-    -- Reserved until AZ Router boiler power semantics are fully verified.
-    boiler_kwh DOUBLE PRECISION,
-
-    -- SolaX daily cumulative counters at first/last raw sample in the bucket.
-    production_dc_counter_start_kwh DOUBLE PRECISION,
-    production_dc_counter_end_kwh DOUBLE PRECISION,
-    yield_ac_counter_start_kwh DOUBLE PRECISION,
-    yield_ac_counter_end_kwh DOUBLE PRECISION,
-    grid_import_counter_start_kwh DOUBLE PRECISION,
-    grid_import_counter_end_kwh DOUBLE PRECISION,
-    grid_export_counter_start_kwh DOUBLE PRECISION,
-    grid_export_counter_end_kwh DOUBLE PRECISION,
-    battery_charge_counter_start_kwh DOUBLE PRECISION,
-    battery_charge_counter_end_kwh DOUBLE PRECISION,
-    battery_discharge_counter_start_kwh DOUBLE PRECISION,
-    battery_discharge_counter_end_kwh DOUBLE PRECISION,
-
-    calculated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT energy_15m_exact_duration
-        CHECK (period_end = period_start + interval '15 minutes'),
-    CONSTRAINT energy_15m_aligned_start
+ALTER TABLE energy_15m
+    ADD CONSTRAINT energy_15m_aligned_start
         CHECK (
             period_start = date_bin(
                 interval '15 minutes',
                 period_start,
                 timestamptz '2000-01-01 00:00:00+00'
             )
-        )
-);
+        );
 
 CREATE INDEX IF NOT EXISTS idx_energy_15m_validity
     ON energy_15m USING gist (validity);
-
