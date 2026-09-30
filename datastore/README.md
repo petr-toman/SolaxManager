@@ -168,3 +168,24 @@ LEFT JOIN solax_config c
 Because forecast radiation is an hourly mean while `solax_raw` is sampled
 every few seconds, model evaluation should aggregate SolaX telemetry over the
 same forecast `validity` range.
+
+
+## Canonical 15-minute energy integration
+
+Migration `012_energy_15m_integration.sql` replaces the original
+`energy_15m` scaffold with a richer rebuildable table. Quarter-hour starts are
+database-constrained to exact 15-minute boundaries and each row exposes a
+`validity TSTZRANGE`.
+
+The original scaffold rows are discarded on first migration instead of shifting
+their timestamps. They are derived data; the reporter backfills the new table
+from raw SolaX and AZ Router telemetry.
+
+Grid import/export is integrated phase-by-phase from AZ Router CT values before
+the phase energies are summed. SolaX phase AC energy and aggregate SolaX
+grid/house values are retained alongside the AZ result for analysis.
+
+The table also stores first/last SolaX daily cumulative counters for DC
+production, AC yield, grid import/export and battery charge/discharge. Their
+`end - start` differences provide an independent coarse-resolution check
+against the trapezoidal integration.
