@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SolaxManager · Visuals v2</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="dot"></span><div><b>SOLAXMANAGER</b><small>visual experiment / v2</small></div></div>
+      <nav><a href="/">Original</a><a href="/visuals/v1/">V1</a><a class="active" href="/visuals/v2/">V2</a></nav>
+      <div id="clock" class="clock">—</div>
+    </header>
+
+    <div id="alert" class="alert"></div>
+
+    <main>
+      <section class="stage">
+        <div class="ambient sun"></div><div class="ambient battery"></div><div class="ambient grid"></div>
+
+        <div class="node solar-node">
+          <span class="node-label">PV pole</span>
+          <strong id="pv">—</strong>
+          <small id="pv-sub">—</small>
+        </div>
+
+        <div class="node battery-node">
+          <span class="node-label">Baterie</span>
+          <div class="soc-ring" id="soc-ring"><div><strong id="soc">—</strong><small>%</small></div></div>
+          <small id="battery-state">—</small>
+        </div>
+
+        <div class="core">
+          <span class="core-kicker">HYBRID INVERTER</span>
+          <strong id="inverter">—</strong>
+          <small id="inverter-state">—</small>
+          <div class="core-meta"><span id="inv-temp">—</span><span id="sample-age">—</span></div>
+        </div>
+
+        <div class="node grid-node">
+          <span class="node-label">Síť · AZ CT</span>
+          <strong id="grid">—</strong>
+          <small id="grid-state">—</small>
+        </div>
+
+        <div class="node house-node">
+          <span class="node-label">Dům</span>
+          <strong id="house">—</strong>
+          <small id="house-sub">—</small>
+        </div>
+
+        <div class="wire w1"></div><div class="wire w2"></div><div class="wire w3"></div><div class="wire w4"></div>
+      </section>
+
+      <section class="strip">
+        <div><span>PV dnes</span><strong id="today-pv">—</strong></div>
+        <div><span>AC dnes</span><strong id="today-ac">—</strong></div>
+        <div><span>Import dnes</span><strong id="today-import">—</strong></div>
+        <div><span>Export dnes</span><strong id="today-export">—</strong></div>
+        <div><span>Baterie + / −</span><strong id="today-battery">—</strong></div>
+      </section>
+
+      <section class="lower">
+        <article class="glass phase-card">
+          <div class="card-head"><div><span>PHASE LAB</span><h2>Střídač × síť</h2></div><small>W · realtime</small></div>
+          <div id="phase-lab"></div>
+        </article>
+
+        <article class="glass boiler-card">
+          <div class="card-head"><div><span>THERMAL LOAD</span><h2 id="boiler-name">Bojler</h2></div><small id="boiler-status">—</small></div>
+          <div class="thermal">
+            <div class="temperature"><strong id="boiler-temp">—</strong><span>°C</span></div>
+            <div class="heat-track"><div id="heat-fill"></div></div>
+          </div>
+          <div class="facts">
+            <div><span>AZ hlášený výkon</span><b id="boiler-power">—</b></div>
+            <div><span>BOOST / source</span><b id="boiler-boost">—</b></div>
+            <div><span>Fáze</span><b id="boiler-phases">—</b></div>
+            <div><span>Max power config</span><b id="boiler-max">—</b></div>
+          </div>
+        </article>
+
+        <article class="glass forecast-card">
+          <div class="card-head"><div><span>SOLAR HORIZON</span><h2>Dalších 8 hodin</h2></div><small id="sun-times">—</small></div>
+          <div id="forecast" class="horizon"></div>
+        </article>
+      </section>
+    </main>
+
+    <footer><span id="serial">SN —</span><span>zdroje: SolaX local API · AZ Router CT · Open-Meteo</span><span id="measured">—</span></footer>
+  </div>
+  <script src="../common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

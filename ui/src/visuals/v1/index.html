@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SolaxManager · Visuals v1</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div>
+        <div class="kicker">SOLAXMANAGER / VISUALS V1</div>
+        <h1>Energy cockpit</h1>
+        <p>Klidnější provozní dashboard s důrazem na tok energie a původ měření.</p>
+      </div>
+      <nav class="nav">
+        <a href="/">Original</a>
+        <a class="active" href="/visuals/v1/">V1</a>
+        <a href="/visuals/v2/">V2</a>
+      </nav>
+    </header>
+
+    <div id="alert" class="alert"></div>
+
+    <section class="hero-grid">
+      <article class="hero-card solar">
+        <div class="eyebrow">PV · SolaX</div>
+        <div class="big" id="pv-power">—</div>
+        <div class="sub"><span id="pv-today">—</span> dnes · DC</div>
+        <div class="mini-grid">
+          <div><span>String 1</span><strong id="pv1">—</strong></div>
+          <div><span>String 2</span><strong id="pv2">—</strong></div>
+        </div>
+      </article>
+
+      <article class="hero-card battery">
+        <div class="eyebrow">BATERIE · SolaX</div>
+        <div class="big"><span id="soc">—</span><small>%</small></div>
+        <div class="sub" id="battery-flow">—</div>
+        <div class="soc-track"><div id="soc-fill"></div></div>
+      </article>
+
+      <article class="hero-card house">
+        <div class="eyebrow">DŮM · SolaX</div>
+        <div class="big" id="house-power">—</div>
+        <div class="sub">aktuální odhad zátěže</div>
+        <div class="mini-grid">
+          <div><span>Dnes AC</span><strong id="ac-today">—</strong></div>
+          <div><span>Střídač</span><strong id="inverter-power">—</strong></div>
+        </div>
+      </article>
+
+      <article class="hero-card grid">
+        <div class="eyebrow">SÍŤ · AZ ROUTER CT</div>
+        <div class="big" id="grid-power">—</div>
+        <div class="sub" id="grid-state">—</div>
+        <div class="mini-grid">
+          <div><span>SolaX grid</span><strong id="solax-grid">—</strong></div>
+          <div><span>Stáří AZ</span><strong id="az-age">—</strong></div>
+        </div>
+      </article>
+    </section>
+
+    <main class="dashboard">
+      <section class="panel flow-panel">
+        <div class="panel-head">
+          <div><span class="eyebrow">TOK ENERGIE</span><h2>Co se děje právě teď</h2></div>
+          <span class="status-pill" id="freshness">čekám…</span>
+        </div>
+
+        <div class="flow-map">
+          <div class="flow-node node-pv"><span>PV</span><strong id="flow-pv">—</strong></div>
+          <div class="flow-line h a"></div>
+          <div class="flow-node node-inverter"><span>STŘÍDAČ</span><strong id="flow-inverter">—</strong></div>
+          <div class="flow-line h b"></div>
+          <div class="flow-node node-house"><span>DŮM</span><strong id="flow-house">—</strong></div>
+
+          <div class="flow-node node-battery"><span>BATERIE</span><strong id="flow-battery">—</strong><em id="flow-battery-state">—</em></div>
+          <div class="flow-line v c"></div>
+          <div class="flow-node node-grid"><span>SÍŤ · AZ CT</span><strong id="flow-grid">—</strong><em id="flow-grid-state">—</em></div>
+          <div class="flow-line v d"></div>
+        </div>
+
+        <div class="source-note">Grid je primárně z AZ Router CT. Fázové AC výkony jsou výstup střídače SolaX.</div>
+      </section>
+
+      <section class="panel status-panel">
+        <div class="panel-head"><div><span class="eyebrow">STAV</span><h2>Střídač & baterie</h2></div></div>
+        <div class="kv">
+          <div><span>Stav střídače</span><strong id="inv-state">—</strong></div>
+          <div><span>Mode code</span><strong id="inv-mode">—</strong></div>
+          <div><span>Teplota střídače</span><strong id="inv-temp">—</strong></div>
+          <div><span>Baterie</span><strong id="bat-detail">—</strong></div>
+          <div><span>Napětí / proud</span><strong id="bat-vi">—</strong></div>
+          <div><span>Teplota baterie</span><strong id="bat-temp">—</strong></div>
+          <div><span>SN</span><strong id="serial">—</strong></div>
+          <div><span>Poslední vzorek</span><strong id="measured">—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel phases-panel">
+        <div class="panel-head">
+          <div><span class="eyebrow">L1 · L2 · L3</span><h2>Fáze: střídač vs. síť</h2></div>
+          <span class="legend"><i class="inv"></i> střídač <i class="ct"></i> AZ CT</span>
+        </div>
+        <div id="phases" class="phases"></div>
+      </section>
+
+      <section class="panel boiler-panel">
+        <div class="panel-head"><div><span class="eyebrow">AZ ROUTER</span><h2 id="boiler-name">Bojler</h2></div><span class="status-pill" id="boiler-status">—</span></div>
+        <div class="boiler-temp"><span id="boiler-temp">—</span><small>°C</small></div>
+        <div class="kv compact">
+          <div><span>Hlášený výkon</span><strong id="boiler-power">—</strong></div>
+          <div><span>BOOST</span><strong id="boiler-boost">—</strong></div>
+          <div><span>Boost source</span><strong id="boiler-source">—</strong></div>
+          <div><span>Připojené fáze</span><strong id="boiler-phases">—</strong></div>
+          <div><span>Max power config</span><strong id="boiler-max">—</strong></div>
+          <div><span>Signál</span><strong id="boiler-signal">—</strong></div>
+        </div>
+      </section>
+
+      <section class="panel forecast-panel">
+        <div class="panel-head">
+          <div><span class="eyebrow">OPEN-METEO · GTI</span><h2>Slunce v dalších hodinách</h2></div>
+          <div class="sun-times"><span>↑ <b id="sunrise">—</b></span><span>↓ <b id="sunset">—</b></span></div>
+        </div>
+        <div id="forecast" class="forecast"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="../common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
