@@ -7,24 +7,27 @@ The project is intentionally split into autonomous services. Each service owns o
 ## Architecture
 
 ```text
-SolaX inverter ──> solax_reader ──────┐
-                                      │
-AZ Router ──────> azrouter_reader ────┼──> datastore (PostgreSQL)
-                                      │
-                                      ├──> reporter
-                                      ├──> telemetry_api ──> ui
-                                      │
-                                      └<── controller ──> SolaX / AZ Router
+SolaX inverter ──> solax_reader ─────────────┐
+                                             │
+AZ Router ──────> azrouter_reader ───────────┼──> datastore (PostgreSQL)
+                                             │
+Open-Meteo ────> solar_forecast_reader ─────┘
+                                             │
+                                             ├──> reporter
+                                             ├──> telemetry_api ──> ui
+                                             │
+                                             └<── controller/planner ──> SolaX / AZ Router
 ```
 
 ### Services
 
 - **solax_reader** – reads local SolaX realtime data, maps device-specific payloads to normalized fields and stores raw normalized measurements.
 - **azrouter_reader** – reads AZ Router data and stores normalized measurements.
+- **solar_forecast_reader** – reads external solar/weather forecasts and stores versioned hourly forecast time slices.
 - **datastore** – PostgreSQL database shared through explicit schemas/tables.
 - **reporter** – calculates energy integrations and time aggregates, and performs retention cleanup.
 - **telemetry_api** – read-only HTTP API over normalized PostgreSQL telemetry. It is the data boundary used by the browser UI.
-- **controller** – reads/writes device configuration and later evaluates configurable automation rules. Starts in **dry-run** mode.
+- **controller** – controller/planner; reads/writes device configuration and later evaluates automation rules using telemetry, configuration history and forecasts. Starts in **dry-run** mode.
 - **ui** – lightweight realtime status dashboard. It never talks directly to SolaX or PostgreSQL.
 
 ## Design rules
@@ -110,6 +113,7 @@ make up
 make down
 make logs
 make logs-solax
+make logs-forecast
 make logs-controller
 make ps
 make db
