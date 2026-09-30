@@ -41,6 +41,7 @@ the new migration explicitly with `psql` rather than deleting the volume.
 - `energy_day`
 - `solax_config` – versioned selected SolaX configuration
 - `azrouter_config` – versioned router/device configuration in one table
+- `solar_forecast` – hourly solar/weather forecast vintages with temporal ranges
 - `controller_action`
 
 Migration `003_solax_phase_semantics.sql` preserves existing measurements while renaming
@@ -126,3 +127,44 @@ before/after `ReadSetData` diff on the target inverter: index 116 changes
 0→1 when the setting changes Disabled→Enabled. Index 24 changed at the same
 time because it is the inverter RTC minute/second field. The reader/controller
 therefore use `ReadSetData[116]` with 0=false and 1=true.
+
+
+## Solar forecast time slices
+
+Migration `011_solar_forecast.sql` creates `solar_forecast`.
+
+Each provider fetch is retained as a separate forecast vintage through
+`fetched_at`; older forecasts are not overwritten. Each hourly row also has:
+
+- `valid_at` – provider timestamp
+- `period_start` / `period_end`
+- generated `validity TSTZRANGE = [period_start,period_end)`
+
+For Open-Meteo solar radiation, the provider values are preceding-hour means,
+so the stored range is `[valid_at - 1 hour, valid_at)`.
+
+This allows temporal joins with both raw SolaX telemetry and versioned SolaX
+configuration. Example:
+
+```sql
+SELECT
+    r.measured_at,
+    r.pv_total_power_w,
+    f.gti_w_m2,
+    c.min_soc_pct
+FROM solax_raw r
+LEFT JOIN LATERAL (
+    SELECT sf.*
+    FROM solar_forecast sf
+    WHERE r.measured_at <@ sf.validity
+      AND sf.fetched_at <= r.measured_at
+    ORDER BY sf.fetched_at DESC
+    LIMIT 1
+) f ON TRUE
+LEFT JOIN solax_config c
+  ON r.measured_at <@ c.validity;
+```
+
+Because forecast radiation is an hourly mean while `solax_raw` is sampled
+every few seconds, model evaluation should aggregate SolaX telemetry over the
+same forecast `validity` range.
