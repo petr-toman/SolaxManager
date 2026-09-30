@@ -8,8 +8,11 @@
 -- Re-running this migration is safe: once the legacy pv_kwh column is gone,
 -- the existing rich energy_15m table is preserved.
 
-DO $$
+DO $
 BEGIN
+    -- The old table was only a reporter scaffold. Drop it instead of renaming
+    -- it: PostgreSQL would otherwise keep the old energy_15m_pkey index name,
+    -- which would collide with the replacement table's primary key.
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -17,9 +20,14 @@ BEGIN
           AND table_name = 'energy_15m'
           AND column_name = 'pv_kwh'
     ) THEN
-        ALTER TABLE energy_15m RENAME TO energy_15m_legacy_012;
+        DROP TABLE energy_15m;
     END IF;
-END $$;
+
+    -- Recovery for an interrupted early revision of this migration.
+    IF to_regclass('public.energy_15m_legacy_012') IS NOT NULL THEN
+        DROP TABLE energy_15m_legacy_012;
+    END IF;
+END $;
 
 CREATE TABLE IF NOT EXISTS energy_15m (
     period_start TIMESTAMPTZ PRIMARY KEY,
@@ -102,4 +110,3 @@ CREATE TABLE IF NOT EXISTS energy_15m (
 CREATE INDEX IF NOT EXISTS idx_energy_15m_validity
     ON energy_15m USING gist (validity);
 
-DROP TABLE IF EXISTS energy_15m_legacy_012;
