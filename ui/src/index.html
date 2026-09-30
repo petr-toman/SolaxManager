@@ -63,6 +63,7 @@
       min-height: 190px;
     }
     .card.wide { grid-column: span 6; }
+    .card.full { grid-column: span 12; }
     .card h2 {
       margin: 0 0 14px;
       font-size: 1rem;
@@ -102,13 +103,17 @@
     }
     .phase-table th:first-child, .phase-table td:first-child { text-align: left; }
     .phase-table th { color: var(--muted); font-weight: 500; }
+    .forecast-current td {
+      background: rgba(120,200,255,.08);
+      font-weight: 650;
+    }
     footer {
       color: var(--muted);
       margin-top: 18px;
       font-size: .85rem;
     }
     @media (max-width: 850px) {
-      .card, .card.wide { grid-column: span 12; }
+      .card, .card.wide, .card.full { grid-column: span 12; }
       header { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -214,6 +219,32 @@
           </tbody>
         </table>
       </section>
+
+      <section class="card full">
+        <h2>Solární předpověď · Open-Meteo</h2>
+        <div class="hero"><span id="forecast-gti">—</span> <span class="unit">W/m² GTI</span></div>
+        <div class="rows" style="margin-bottom:12px">
+          <div class="row"><span>Aktuální interval</span><span class="value" id="forecast-period">—</span></div>
+          <div class="row"><span>Oblačnost / teplota</span><span class="value" id="forecast-weather">—</span></div>
+          <div class="row"><span>Východ / západ slunce</span><span class="value" id="forecast-sun">—</span></div>
+          <div class="row"><span>Stáří předpovědi</span><span class="value" id="forecast-age">—</span></div>
+        </div>
+        <table class="phase-table">
+          <thead>
+            <tr>
+              <th>Interval</th>
+              <th>GTI W/m²</th>
+              <th>GHI W/m²</th>
+              <th>Oblačnost</th>
+              <th>Teplota</th>
+              <th>Srážky</th>
+            </tr>
+          </thead>
+          <tbody id="forecast-hours">
+            <tr><td colspan="6">—</td></tr>
+          </tbody>
+        </table>
+      </section>
     </div>
 
     <footer>
@@ -234,6 +265,29 @@
     }
 
     function set(id, text) { $(id).textContent = text; }
+
+    function hm(value) {
+      if (!value) return '—';
+      return new Date(value).toLocaleTimeString('cs-CZ', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function forecastPeriod(row) {
+      if (!row) return '—';
+      const start = new Date(row.period_start);
+      const end = new Date(row.period_end);
+      const day = start.toLocaleDateString('cs-CZ', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'numeric'
+      });
+      return day + ' ' +
+        start.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' }) +
+        '–' +
+        end.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+    }
 
     function render(d) {
       set('pv-total', n(d.pv_total_power_w));
@@ -333,6 +387,58 @@
         set('az-device-phases', '—');
         set('az-device-signal', '—');
         set('az-device-age', '—');
+      }
+
+      const forecast = Array.isArray(d.solar_forecast) ? d.solar_forecast : [];
+      const currentForecast = forecast[0];
+
+      if (d.solar_forecast_available && currentForecast) {
+        set('forecast-gti', n(currentForecast.gti_w_m2, 1));
+        set('forecast-period', forecastPeriod(currentForecast));
+        set(
+          'forecast-weather',
+          n(currentForecast.cloud_cover_pct, 0, '%') +
+            ' / ' + n(currentForecast.temperature_c, 1, '°C')
+        );
+        set(
+          'forecast-sun',
+          hm(d.solar_sunrise) + ' / ' + hm(d.solar_sunset)
+        );
+        set('forecast-age', n(d.solar_forecast_age_seconds, 0, 's'));
+
+        const tbody = $('forecast-hours');
+        tbody.textContent = '';
+        const now = Date.now();
+
+        for (const row of forecast) {
+          const tr = document.createElement('tr');
+          const start = new Date(row.period_start).getTime();
+          const end = new Date(row.period_end).getTime();
+          if (start <= now && now < end) tr.className = 'forecast-current';
+
+          const values = [
+            forecastPeriod(row),
+            n(row.gti_w_m2, 1),
+            n(row.ghi_w_m2, 1),
+            n(row.cloud_cover_pct, 0, '%'),
+            n(row.temperature_c, 1, '°C'),
+            n(row.precipitation_mm, 1, 'mm')
+          ];
+
+          for (const value of values) {
+            const td = document.createElement('td');
+            td.textContent = value;
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+      } else {
+        set('forecast-gti', '—');
+        set('forecast-period', 'bez dat');
+        set('forecast-weather', '—');
+        set('forecast-sun', '—');
+        set('forecast-age', '—');
+        $('forecast-hours').innerHTML = '<tr><td colspan="6">Předpověď není dostupná</td></tr>';
       }
 
       const measured = new Date(d.measured_at);

@@ -12,6 +12,7 @@ UI is intentionally not a first-phase priority. The first implementation only pr
 - grid import/export
 - battery power and SOC
 - boiler/AZ Router state
+- Open-Meteo solar forecast (GTI/GHI, cloud cover, temperature, precipitation, sunrise/sunset)
 - controller mode
 - freshness / last update
 

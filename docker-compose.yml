@@ -91,6 +91,7 @@ services:
       PGUSER: ${POSTGRES_USER:-solax}
       PGPASSWORD: ${POSTGRES_PASSWORD:-solax_dev_only}
       TELEMETRY_STALE_AFTER_SECONDS: ${TELEMETRY_STALE_AFTER_SECONDS:-15}
+      TELEMETRY_FORECAST_HOURS: ${TELEMETRY_FORECAST_HOURS:-8}
     depends_on:
       datastore:
         condition: service_healthy

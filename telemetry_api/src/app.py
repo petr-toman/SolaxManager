@@ -9,6 +9,8 @@ from psycopg.rows import dict_row
 HOST = os.getenv("TELEMETRY_API_HOST", "0.0.0.0")
 PORT = int(os.getenv("TELEMETRY_API_PORT", "8000"))
 STALE_AFTER_SECONDS = int(os.getenv("TELEMETRY_STALE_AFTER_SECONDS", "15"))
+FORECAST_HOURS = int(os.getenv("TELEMETRY_FORECAST_HOURS", "8"))
+FORECAST_PROVIDER = "open_meteo"
 
 DB_KWARGS = {
     "host": os.getenv("PGHOST", "datastore"),
@@ -69,6 +71,34 @@ FROM azrouter_device_raw
 ORDER BY device_id, measured_at DESC
 """
 
+LATEST_SOLAR_FORECAST_SQL = """
+SELECT
+    provider,
+    fetched_at,
+    period_start,
+    period_end,
+    gti_w_m2,
+    ghi_w_m2,
+    cloud_cover_pct,
+    temperature_c,
+    precipitation_mm,
+    precipitation_probability_pct,
+    sunshine_duration_s,
+    is_day,
+    sunrise,
+    sunset
+FROM solar_forecast
+WHERE provider = %s
+  AND fetched_at = (
+      SELECT max(fetched_at)
+      FROM solar_forecast
+      WHERE provider = %s
+  )
+  AND period_end > now()
+ORDER BY period_start
+LIMIT %s
+"""
+
 
 def sample_age(measured_at):
     now = datetime.now(timezone.utc)
@@ -86,6 +116,12 @@ def latest_sample():
 
             cur.execute(LATEST_AZROUTER_DEVICES_SQL)
             azrouter_devices = cur.fetchall()
+
+            cur.execute(
+                LATEST_SOLAR_FORECAST_SQL,
+                (FORECAST_PROVIDER, FORECAST_PROVIDER, FORECAST_HOURS),
+            )
+            solar_forecast = cur.fetchall()
 
     if solax is None:
         return None
@@ -137,11 +173,46 @@ def latest_sample():
 
     data["azrouter_devices"] = devices
 
+    if solar_forecast:
+        forecast_rows = []
+        for row in solar_forecast:
+            item = dict(row)
+            for key in ("fetched_at", "period_start", "period_end", "sunrise", "sunset"):
+                value = item.get(key)
+                item[key] = value.isoformat() if value is not None else None
+            forecast_rows.append(item)
+
+        latest_forecast = solar_forecast[0]
+        forecast_age = sample_age(latest_forecast["fetched_at"])
+        data["solar_forecast_available"] = True
+        data["solar_forecast_provider"] = latest_forecast["provider"]
+        data["solar_forecast_fetched_at"] = latest_forecast["fetched_at"].isoformat()
+        data["solar_forecast_age_seconds"] = round(forecast_age, 3)
+        data["solar_sunrise"] = (
+            latest_forecast["sunrise"].isoformat()
+            if latest_forecast["sunrise"] is not None
+            else None
+        )
+        data["solar_sunset"] = (
+            latest_forecast["sunset"].isoformat()
+            if latest_forecast["sunset"] is not None
+            else None
+        )
+        data["solar_forecast"] = forecast_rows
+    else:
+        data["solar_forecast_available"] = False
+        data["solar_forecast_provider"] = FORECAST_PROVIDER
+        data["solar_forecast_fetched_at"] = None
+        data["solar_forecast_age_seconds"] = None
+        data["solar_sunrise"] = None
+        data["solar_sunset"] = None
+        data["solar_forecast"] = []
+
     return data
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "SolaxManagerTelemetry/0.2"
+    server_version = "SolaxManagerTelemetry/0.3"
 
     def log_message(self, fmt, *args):
         print(f"{self.address_string()} - {fmt % args}", flush=True)
