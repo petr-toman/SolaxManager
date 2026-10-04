@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, model_validator
 SOLAX_URL = os.getenv("SOLAX_URL", "http://192.168.1.20").rstrip("/")
 SOLAX_PASSWORD = os.getenv("SOLAX_PASSWORD", "")
 SOLAX_HTTP_TIMEOUT_SECONDS = float(os.getenv("SOLAX_HTTP_TIMEOUT_SECONDS", "5"))
+SOLAX_MIN_SOC_REGISTER = int(os.getenv("SOLAX_MIN_SOC_REGISTER", "29"))
 
 AZROUTER_URL = os.getenv("AZROUTER_URL", "http://192.168.1.21").rstrip("/")
 AZROUTER_USERNAME = os.getenv("AZROUTER_USERNAME", "")
@@ -222,6 +223,54 @@ def parse_config(data: list[int]) -> SolaxConfig:
 
 def get_config() -> SolaxConfig:
     return parse_config(read_set_data())
+
+
+def write_solax_register(register: int, value: int) -> str:
+    if not SOLAX_PASSWORD:
+        raise SolaxConfigError("SOLAX_PASSWORD is not configured")
+
+    data_document = {
+        "num": 1,
+        "Data": [
+            {
+                "reg": register,
+                # The local G4 setReg API expects setting values as strings.
+                "val": str(value),
+            }
+        ],
+    }
+    payload = urllib.parse.urlencode(
+        {
+            "optType": "setReg",
+            "pwd": SOLAX_PASSWORD,
+            "data": json.dumps(data_document, separators=(",", ":")),
+        }
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        SOLAX_URL,
+        data=payload,
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request, timeout=SOLAX_HTTP_TIMEOUT_SECONDS
+        ) as response:
+            raw = response.read()
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise SolaxConfigError(
+            f"setReg register {register} request failed: {exc}"
+        ) from exc
+
+    text = raw.decode("utf-8", errors="replace").strip()
+    if text.lower() in {"false", "0"}:
+        raise SolaxConfigError(
+            f"setReg register {register} was rejected by the inverter: {text!r}"
+        )
+
+    return text
 
 
 class AzRouterClient:
@@ -468,8 +517,7 @@ azrouter = AzRouterClient(
 )
 
 
-class ActionWindowRequest(BaseModel):
-    enabled: bool
+class GuardedActionRequest(BaseModel):
     verification_elapsed_ms: int = Field(
         default=750,
         ge=0,
@@ -491,7 +539,7 @@ class ActionWindowRequest(BaseModel):
     requested_by: str = Field(default="api", min_length=1, max_length=64)
 
     @model_validator(mode="after")
-    def validate_window(self) -> "ActionWindowRequest":
+    def validate_window(self) -> "GuardedActionRequest":
         for name, value in (
             ("valid_from", self.valid_from),
             ("valid_until", self.valid_until),
@@ -508,8 +556,20 @@ class ActionWindowRequest(BaseModel):
         return self
 
 
+class ActionWindowRequest(GuardedActionRequest):
+    enabled: bool
+
+
 class DeviceBoostRequest(ActionWindowRequest):
     device_id: int = Field(ge=0)
+
+
+class MinSocRequest(GuardedActionRequest):
+    min_soc_pct: int = Field(
+        ge=10,
+        le=100,
+        description="Self Use minimum battery state of charge in percent.",
+    )
 
 
 def validate_mode() -> None:
@@ -538,11 +598,12 @@ def check_action_window(
 
 def action_result(
     *,
+    device: str,
     action: str,
     target: str,
-    requested: bool,
-    previous: bool,
-    current: bool,
+    requested: Any,
+    previous: Any,
+    current: Any,
     changed: bool,
     verified: bool,
     executed: bool,
@@ -556,7 +617,7 @@ def action_result(
             and (not executed or verified)
         ),
         "status": status_text,
-        "device": "azrouter",
+        "device": device,
         "action": action,
         "target": target,
         "requested": requested,
@@ -574,6 +635,107 @@ def action_result(
     return result
 
 
+def perform_set_min_soc(request: MinSocRequest) -> dict[str, Any]:
+    validate_mode()
+    check_action_window(request.valid_from, request.valid_until)
+
+    before_config = get_config()
+    previous = before_config.min_soc_pct
+    requested = request.min_soc_pct
+    before = {"min_soc_pct": previous}
+
+    if previous == requested:
+        return action_result(
+            device="solax",
+            action="set_min_soc",
+            target="self_use.min_soc_pct",
+            requested=requested,
+            previous=previous,
+            current=previous,
+            changed=False,
+            executed=False,
+            verified=True,
+            requested_by=request.requested_by,
+            status_text="unchanged",
+            extra={
+                "before": before,
+                "after": {"min_soc_pct": previous},
+                "write_register": SOLAX_MIN_SOC_REGISTER,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
+        )
+
+    if CONTROLLER_MODE == "off":
+        return action_result(
+            device="solax",
+            action="set_min_soc",
+            target="self_use.min_soc_pct",
+            requested=requested,
+            previous=previous,
+            current=previous,
+            changed=False,
+            executed=False,
+            verified=False,
+            requested_by=request.requested_by,
+            status_text="controller_off",
+            extra={
+                "before": before,
+                "after": {"min_soc_pct": previous},
+                "write_register": SOLAX_MIN_SOC_REGISTER,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
+        )
+
+    if CONTROLLER_MODE == "dry-run":
+        return action_result(
+            device="solax",
+            action="set_min_soc",
+            target="self_use.min_soc_pct",
+            requested=requested,
+            previous=previous,
+            current=previous,
+            changed=False,
+            executed=False,
+            verified=False,
+            requested_by=request.requested_by,
+            status_text="dry_run",
+            extra={
+                "before": before,
+                "after": {"min_soc_pct": previous},
+                "write_register": SOLAX_MIN_SOC_REGISTER,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
+        )
+
+    write_solax_register(SOLAX_MIN_SOC_REGISTER, requested)
+    if request.verification_elapsed_ms:
+        time.sleep(request.verification_elapsed_ms / 1000.0)
+
+    after_config = get_config()
+    current = after_config.min_soc_pct
+    verified = current == requested
+
+    return action_result(
+        device="solax",
+        action="set_min_soc",
+        target="self_use.min_soc_pct",
+        requested=requested,
+        previous=previous,
+        current=current,
+        changed=current != previous,
+        executed=True,
+        verified=verified,
+        requested_by=request.requested_by,
+        status_text="changed" if verified else "verification_failed",
+        extra={
+            "before": before,
+            "after": {"min_soc_pct": current},
+            "write_register": SOLAX_MIN_SOC_REGISTER,
+            "verification_elapsed_ms": request.verification_elapsed_ms,
+        },
+    )
+
+
 def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
     validate_mode()
     check_action_window(request.valid_from, request.valid_until)
@@ -583,6 +745,7 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
 
     if previous == request.enabled:
         return action_result(
+            device="azrouter",
             action="device_boost",
             target=target,
             requested=request.enabled,
@@ -601,6 +764,7 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
 
     if CONTROLLER_MODE == "off":
         return action_result(
+            device="azrouter",
             action="device_boost",
             target=target,
             requested=request.enabled,
@@ -619,6 +783,7 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
 
     if CONTROLLER_MODE == "dry-run":
         return action_result(
+            device="azrouter",
             action="device_boost",
             target=target,
             requested=request.enabled,
@@ -642,6 +807,7 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
     verified = current == request.enabled
 
     return action_result(
+        device="azrouter",
         action="device_boost",
         target=target,
         requested=request.enabled,
@@ -667,6 +833,7 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
 
     if previous == request.enabled:
         return action_result(
+            device="azrouter",
             action="master_boost",
             target="master",
             requested=request.enabled,
@@ -681,6 +848,7 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
 
     if CONTROLLER_MODE == "off":
         return action_result(
+            device="azrouter",
             action="master_boost",
             target="master",
             requested=request.enabled,
@@ -695,6 +863,7 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
 
     if CONTROLLER_MODE == "dry-run":
         return action_result(
+            device="azrouter",
             action="master_boost",
             target="master",
             requested=request.enabled,
@@ -714,6 +883,7 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
     verified = current == request.enabled
 
     return action_result(
+        device="azrouter",
         action="master_boost",
         target="master",
         requested=request.enabled,
@@ -730,7 +900,7 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
 
 app = FastAPI(
     title="SolaxManager Controller API",
-    version="0.6.1",
+    version="0.7.0",
     description=(
         "Hardware control boundary for SolaX and AZ Router. "
         "Readers remain read-only; all hardware writes belong here. "
@@ -783,7 +953,7 @@ def capabilities() -> dict[str, Any]:
                 "hot_standby",
                 "inverter_time",
             ],
-            "actions": [],
+            "actions": ["set_min_soc"],
         },
         "azrouter": {
             "reads": ["status", "settings", "devices"],
@@ -798,6 +968,22 @@ def api_solax_config() -> dict[str, Any]:
         return asdict(get_config())
     except ControllerError as exc:
         raise api_device_error(exc) from exc
+
+
+@app.post("/api/actions/solax/min-soc", tags=["SolaX actions"])
+def api_set_min_soc(request: MinSocRequest) -> Any:
+    try:
+        result = perform_set_min_soc(request)
+    except ActionWindowError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ControllerError as exc:
+        raise api_device_error(exc) from exc
+
+    if result["status"] == "controller_off":
+        return JSONResponse(status_code=409, content=result)
+    if result["status"] == "verification_failed":
+        return JSONResponse(status_code=502, content=result)
+    return result
 
 
 @app.get("/api/azrouter/status", tags=["AZ Router"])

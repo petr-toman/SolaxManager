@@ -73,6 +73,31 @@ SolaX reads:
 GET /api/solax/config
 ```
 
+SolaX actions:
+
+```text
+POST /api/actions/solax/min-soc
+```
+
+Example:
+
+```json
+{
+  "min_soc_pct": 25,
+  "verification_elapsed_ms": 750,
+  "requested_by": "manual-test"
+}
+```
+
+The action first reads the current SolaX configuration and returns explicit
+`before` and `after` snapshots. It is idempotent, respects controller mode
+and action validity guards, waits before read-back verification, and returns
+HTTP 502 if the observed Min SOC does not match the requested value.
+
+For the local G4 HTTP API, Min SOC is read from `ReadSetData[28]` but written
+through `setReg` register `29`. The write register is an internal adapter
+mapping and is not selectable through the REST action.
+
 AZ Router reads:
 
 ```text
@@ -249,7 +274,6 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controll
 Planned SolaX write actions remain:
 
 ```text
-set_min_soc
 set_work_mode
 set_grid_charge
 start_force_charge
