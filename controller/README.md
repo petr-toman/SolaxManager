@@ -136,6 +136,7 @@ Example device request:
 {
   "device_id": 1,
   "enabled": true,
+  "verification_elapsed_ms": 750,
   "requested_by": "manual-test"
 }
 ```
@@ -154,6 +155,12 @@ Optional execution guards:
 
 These timestamps do **not** schedule the request. If the request arrives outside
 the interval, the controller rejects it.
+
+`verification_elapsed_ms` controls the one-time delay between the AZ Router
+write request and the following read-back verification. It defaults to `750`
+milliseconds and may be set from `0` to `10000` in each request, which makes
+it possible to tune the router's state-propagation delay directly from Swagger
+without rebuilding the image.
 
 ## AZ Router authentication
 

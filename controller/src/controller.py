@@ -2,6 +2,7 @@ import http.cookiejar
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -469,6 +470,16 @@ azrouter = AzRouterClient(
 
 class ActionWindowRequest(BaseModel):
     enabled: bool
+    verification_elapsed_ms: int = Field(
+        default=750,
+        ge=0,
+        le=10000,
+        description=(
+            "Delay in milliseconds between a hardware write and the read-back "
+            "verification. Use this to tune devices with eventually consistent "
+            "HTTP state."
+        ),
+    )
     valid_from: datetime | None = Field(
         default=None,
         description="Optional earliest execution time. This is a validity guard, not a scheduler.",
@@ -582,7 +593,10 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
             verified=True,
             requested_by=request.requested_by,
             status_text="unchanged",
-            extra={"boost_field": boost_field},
+            extra={
+                "boost_field": boost_field,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
         )
 
     if CONTROLLER_MODE == "off":
@@ -597,7 +611,10 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
             verified=False,
             requested_by=request.requested_by,
             status_text="controller_off",
-            extra={"boost_field": boost_field},
+            extra={
+                "boost_field": boost_field,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
         )
 
     if CONTROLLER_MODE == "dry-run":
@@ -612,10 +629,15 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
             verified=False,
             requested_by=request.requested_by,
             status_text="dry_run",
-            extra={"boost_field": boost_field},
+            extra={
+                "boost_field": boost_field,
+                "verification_elapsed_ms": request.verification_elapsed_ms,
+            },
         )
 
     azrouter.set_device_boost(request.device_id, request.enabled)
+    if request.verification_elapsed_ms:
+        time.sleep(request.verification_elapsed_ms / 1000.0)
     current, current_field = azrouter.get_device_boost(request.device_id)
     verified = current == request.enabled
 
@@ -630,7 +652,10 @@ def perform_device_boost(request: DeviceBoostRequest) -> dict[str, Any]:
         verified=verified,
         requested_by=request.requested_by,
         status_text="changed" if verified else "verification_failed",
-        extra={"boost_field": current_field},
+        extra={
+            "boost_field": current_field,
+            "verification_elapsed_ms": request.verification_elapsed_ms,
+        },
     )
 
 
@@ -683,6 +708,8 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
         )
 
     azrouter.set_master_boost(request.enabled)
+    if request.verification_elapsed_ms:
+        time.sleep(request.verification_elapsed_ms / 1000.0)
     current = azrouter.get_master_boost()
     verified = current == request.enabled
 
@@ -697,12 +724,13 @@ def perform_master_boost(request: ActionWindowRequest) -> dict[str, Any]:
         verified=verified,
         requested_by=request.requested_by,
         status_text="changed" if verified else "verification_failed",
+        extra={"verification_elapsed_ms": request.verification_elapsed_ms},
     )
 
 
 app = FastAPI(
     title="SolaxManager Controller API",
-    version="0.6.0",
+    version="0.6.1",
     description=(
         "Hardware control boundary for SolaX and AZ Router. "
         "Readers remain read-only; all hardware writes belong here. "
