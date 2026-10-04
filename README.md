@@ -90,7 +90,7 @@ If M0.5 cannot be implemented reliably on the inverter/firmware, further automat
 - battery recovery and periodic full-charge logic
 - boiler optimization
 
-## Development
+## Development and production
 
 Production target: Raspberry Pi with Docker Compose.
 
@@ -104,48 +104,85 @@ cp .env.example .env
 
 Never commit real device or database credentials.
 
-Compose project name is fixed to `solaxmanager`, so `make up`, `make dev` and `make prod` use the same named Docker volumes, including the PostgreSQL data volume.
+Compose has one shared base and exactly two runtime modes:
 
-The project provides a Makefile for the common Docker workflows:
+```text
+docker-compose.yml       common services, environment, health checks and named volumes
+docker-compose.dev.yml   local source bind mounts + development host ports
+docker-compose.prod.yml  production host exposure (UI only)
+```
+
+The Compose project name is fixed to `solaxmanager`. DEV and PROD therefore use
+the same named PostgreSQL volume `solaxmanager_pgdata`; switching mode does not
+create a second application database.
+
+Common commands:
 
 ```bash
-make help
 make dev
 make prod
-make up
 make down
-make logs
-make logs-solax
-make logs-forecast
-make logs-controller
+make rebuild-dev
+make rebuild-prod
 make ps
 make db
 ```
 
-Development uses the base Compose file plus `docker-compose.dev.yml`. Source directories are bind-mounted where practical and PostgreSQL/controller APIs are exposed only to the development host. Controller safety mode is always taken from `.env` via `CONTROLLER_MODE`; the dev overlay does not override it.
+There is deliberately no third `make up` runtime mode.
 
-The realtime dashboard is available at:
+### Host ports
+
+SolaxManager reserves the host range `18880-18889`:
+
+| Host port | Service | DEV | PROD |
+|---:|---|:---:|:---:|
+| 18880 | UI | yes | yes |
+| 18881 | telemetry API | yes | no |
+| 18882 | controller / Swagger | yes | no |
+| 18883 | PostgreSQL | yes | no |
+| 18884 | planner (reserved) | future | no |
+
+Container-internal ports remain native (`80`, `8000`, `8090`, `5432`).
+DEV mappings are bound to `127.0.0.1`; PROD exposes only the UI.
+
+With DEV running:
 
 ```text
-http://localhost:8088
+http://127.0.0.1:18880              UI
+http://127.0.0.1:18881/api/realtime telemetry API
+http://127.0.0.1:18882/docs         controller Swagger
+127.0.0.1:18883                     PostgreSQL
 ```
 
-The browser calls `/api/realtime` on the UI origin; nginx proxies that request internally to `telemetry_api`. The API reads the newest normalized PostgreSQL row, so the UI never needs inverter credentials.
+`CONTROLLER_MODE` always comes from `.env` in both DEV and PROD.
 
-Production uses the base Compose file plus `docker-compose.prod.yml`. Source code is taken from built images and PostgreSQL/controller APIs remain internal to the Docker network. Controller mode is taken from `.env` and defaults to `dry-run` when unset.
+### Source code layout
 
-Clean rebuilds are available through:
+DEV bind-mounts application source directories from the local filesystem, so
+source edits are visible inside the running containers.
 
-```bash
-make rebuild
-make rebuild-dev
-make rebuild-prod
+PROD has no source bind mounts. Application sources are the copies baked into
+the Docker images by each service Dockerfile.
+
+### Persistent database
+
+PostgreSQL always stores its data in the Docker named volume:
+
+```text
+solaxmanager_pgdata -> /var/lib/postgresql/data
 ```
 
-A destructive reset of persistent Docker data is deliberately explicit:
+Normal DEV/PROD switches and rebuilds preserve this volume.
+
+A destructive reset is explicit:
 
 ```bash
 make initialize
 ```
 
-This removes the PostgreSQL volume and recreates the base stack, so it requires interactive confirmation.
+This removes persistent SolaxManager volumes and starts a clean DEV stack.
+For a clean production start use:
+
+```bash
+make initialize MODE=prod
+```

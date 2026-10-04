@@ -1,33 +1,4 @@
 services:
-  datastore:
-    environment:
-      APP_ENV: production
-
-  solax_reader:
-    environment:
-      APP_ENV: production
-
-  azrouter_reader:
-    environment:
-      APP_ENV: production
-
-  solar_forecast_reader:
-    environment:
-      APP_ENV: production
-
-  reporter:
-    environment:
-      APP_ENV: production
-
-  telemetry_api:
-    environment:
-      APP_ENV: production
-
-  controller:
-    environment:
-      APP_ENV: production
-      CONTROLLER_MODE: ${CONTROLLER_MODE:-dry-run}
-
   ui:
-    environment:
-      APP_ENV: production
+    ports:
+      - "${UI_PORT:-18880}:80"

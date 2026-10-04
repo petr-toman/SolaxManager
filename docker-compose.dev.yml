@@ -1,46 +1,38 @@
 services:
   datastore:
     ports:
-      - "${POSTGRES_DEV_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_DEV_PORT:-18883}:5432"
 
   solax_reader:
-    environment:
-      APP_ENV: development
     volumes:
       - ./solax_reader/src:/app:ro
 
   azrouter_reader:
-    environment:
-      APP_ENV: development
     volumes:
       - ./azrouter_reader/src:/app:ro
 
   solar_forecast_reader:
-    environment:
-      APP_ENV: development
     volumes:
       - ./solar_forecast_reader/src:/app:ro
 
   reporter:
-    environment:
-      APP_ENV: development
     volumes:
       - ./reporter/src:/app:ro
 
   telemetry_api:
-    environment:
-      APP_ENV: development
+    ports:
+      - "127.0.0.1:${TELEMETRY_API_DEV_PORT:-18881}:8000"
     volumes:
       - ./telemetry_api/src:/app:ro
 
   controller:
-    environment:
-      APP_ENV: development
     ports:
-      - "127.0.0.1:${CONTROLLER_DEV_PORT:-8090}:${CONTROLLER_PORT:-8090}"
+      - "127.0.0.1:${CONTROLLER_DEV_PORT:-18882}:${CONTROLLER_PORT:-8090}"
     volumes:
       - ./controller/src:/app:ro
 
   ui:
+    ports:
+      - "127.0.0.1:${UI_PORT:-18880}:80"
     volumes:
       - ./ui/src:/usr/share/nginx/html:ro

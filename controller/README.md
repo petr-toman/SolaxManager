@@ -34,17 +34,19 @@ action are validity guards only. Future scheduling belongs to the planner.
 
 ## REST API
 
-Default internal port:
+Default container-internal port:
 
 ```text
 8090
 ```
 
-Development publishes the controller only on localhost:
+Development maps the controller to the reserved SolaxManager host port:
 
 ```text
-http://127.0.0.1:8090
+http://127.0.0.1:18882
 ```
+
+The container itself continues to listen on port `8090`.
 
 Production does **not** publish the controller port to the Docker host. Other
 services in the Compose stack can reach it through the Docker network as

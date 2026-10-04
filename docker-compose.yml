@@ -95,6 +95,8 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD:-solax_dev_only}
       TELEMETRY_STALE_AFTER_SECONDS: ${TELEMETRY_STALE_AFTER_SECONDS:-15}
       TELEMETRY_FORECAST_HOURS: ${TELEMETRY_FORECAST_HOURS:-8}
+      TELEMETRY_API_HOST: 0.0.0.0
+      TELEMETRY_API_PORT: 8000
     depends_on:
       datastore:
         condition: service_healthy
@@ -135,8 +137,6 @@ services:
     build:
       context: ./ui
     container_name: solaxmanager-ui
-    ports:
-      - "${UI_PORT:-8088}:80"
     depends_on:
       - telemetry_api
     restart: unless-stopped
