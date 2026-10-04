@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 HOST = os.getenv("TELEMETRY_API_HOST", "0.0.0.0")
 PORT = int(os.getenv("TELEMETRY_API_PORT", "8000"))
 STALE_AFTER_SECONDS = int(os.getenv("TELEMETRY_STALE_AFTER_SECONDS", "15"))
-FORECAST_HOURS = int(os.getenv("TELEMETRY_FORECAST_HOURS", "8"))
+FORECAST_HOURS = int(os.getenv("TELEMETRY_FORECAST_HOURS", "36"))
 FORECAST_PROVIDER = "open_meteo"
 
 DB_KWARGS = {

@@ -224,8 +224,6 @@
         <h2>Solární předpověď · Open-Meteo</h2>
         <div class="hero"><span id="forecast-gti">—</span> <span class="unit">W/m² GTI</span></div>
         <div class="rows" style="margin-bottom:12px">
-          <div class="row"><span>Aktuální interval</span><span class="value" id="forecast-period">—</span></div>
-          <div class="row"><span>Oblačnost / teplota</span><span class="value" id="forecast-weather">—</span></div>
           <div class="row"><span>Východ / západ slunce</span><span class="value" id="forecast-sun">—</span></div>
           <div class="row"><span>Stáří předpovědi</span><span class="value" id="forecast-age">—</span></div>
         </div>
@@ -394,12 +392,6 @@
 
       if (d.solar_forecast_available && currentForecast) {
         set('forecast-gti', n(currentForecast.gti_w_m2, 1));
-        set('forecast-period', forecastPeriod(currentForecast));
-        set(
-          'forecast-weather',
-          n(currentForecast.cloud_cover_pct, 0, '%') +
-            ' / ' + n(currentForecast.temperature_c, 1, '°C')
-        );
         set(
           'forecast-sun',
           hm(d.solar_sunrise) + ' / ' + hm(d.solar_sunset)
@@ -434,8 +426,6 @@
         }
       } else {
         set('forecast-gti', '—');
-        set('forecast-period', 'bez dat');
-        set('forecast-weather', '—');
         set('forecast-sun', '—');
         set('forecast-age', '—');
         $('forecast-hours').innerHTML = '<tr><td colspan="6">Předpověď není dostupná</td></tr>';
