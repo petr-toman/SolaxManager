@@ -1,25 +1,200 @@
 # controller
 
-Hardware control and automation service.
+Hardware-control boundary for SolaxManager.
 
-This is the critical GO / NO-GO component for SolaxManager.
+The controller is the **only** service allowed to change SolaX or AZ Router
+configuration. Reader services remain read-only and continue to own background
+telemetry/config polling.
 
-## Responsibility
+The controller now exposes a small REST API with automatically generated
+OpenAPI documentation.
 
-The controller is the only SolaxManager component allowed to write device configuration.
+## Architecture
 
-It consists conceptually of two layers:
+```text
+UI / planner / manual client
+          |
+          | HTTP / JSON
+          v
++----------------------------+
+| controller                 |
+|                            |
+| REST action catalog        |
+|   |                    |   |
+|   v                    v   |
+| SolaX adapter     AZ adapter|
++---|--------------------|---+
+    |                    |
+    v                    v
+  SolaX              AZ Router
+```
 
-1. **Device control adapter** – typed GET/SET operations and explicit actions.
-2. **Rule engine / scheduler** – decides when an action should be requested.
+The controller does not schedule scenarios. `valid_from` / `valid_until` on an
+action are validity guards only. Future scheduling belongs to the planner.
 
-These layers remain separate so device protocol changes do not affect automation logic.
+## REST API
 
-## M0.5A: read-only SolaX config adapter
+Default internal port:
 
-The first M0.5 step intentionally implements **reads only**. It calls the local
-SolaX HTTP endpoint with `optType=ReadSetData`, validates the returned settings
-array, and exposes only indexes verified on the target inverter/firmware.
+```text
+8090
+```
+
+Development publishes the controller only on localhost:
+
+```text
+http://127.0.0.1:8090
+```
+
+Production does **not** publish the controller port to the Docker host. Other
+services in the Compose stack can reach it through the Docker network as
+`http://controller:8090`.
+
+Interactive documentation:
+
+```text
+GET /docs
+GET /redoc
+GET /openapi.json
+```
+
+Service endpoints:
+
+```text
+GET /health
+GET /api/capabilities
+```
+
+SolaX reads:
+
+```text
+GET /api/solax/config
+```
+
+AZ Router reads:
+
+```text
+GET /api/azrouter/status
+GET /api/azrouter/config
+GET /api/azrouter/devices
+```
+
+AZ Router actions:
+
+```text
+POST /api/actions/azrouter/device-boost
+POST /api/actions/azrouter/master-boost
+```
+
+## AZ Router BOOST
+
+Device BOOST is implemented against the local API as:
+
+```text
+POST /api/v1/device/boost
+```
+
+with payload:
+
+```json
+{
+  "data": {
+    "device": {
+      "common": {
+        "id": 1
+      }
+    },
+    "boost": 1
+  }
+}
+```
+
+Master BOOST uses:
+
+```text
+POST /api/v1/system/boost
+```
+
+The controller performs BOOST changes transactionally:
+
+1. read the current state,
+2. do nothing when the requested value is already active,
+3. honor controller safety mode,
+4. send the write request only when required,
+5. read the state back,
+6. verify the resulting value,
+7. return the before/after result to the caller.
+
+For Smart Slave devices the controller currently recognizes `power.boost`.
+It also accepts `charge.boost` for charger-style devices.
+
+Example device request:
+
+```json
+{
+  "device_id": 1,
+  "enabled": true,
+  "requested_by": "manual-test"
+}
+```
+
+Optional execution guards:
+
+```json
+{
+  "device_id": 1,
+  "enabled": true,
+  "valid_from": "2026-10-05T10:00:00+02:00",
+  "valid_until": "2026-10-05T13:00:00+02:00",
+  "requested_by": "planner"
+}
+```
+
+These timestamps do **not** schedule the request. If the request arrives outside
+the interval, the controller rejects it.
+
+## AZ Router authentication
+
+Read-only local endpoints may work without credentials. Write endpoints can
+require authentication.
+
+Configure:
+
+```text
+AZROUTER_USERNAME=
+AZROUTER_PASSWORD=
+```
+
+Both must be configured together. The controller calls `/api/v1/login`, retains
+session cookies, and also uses a returned bearer token when the firmware exposes
+one.
+
+If both credential fields are empty, the controller attempts the write without
+login. This supports installations where the local write API is unrestricted;
+an HTTP authentication error is otherwise returned to the caller.
+
+## Controller modes
+
+```text
+off
+manual
+dry-run
+auto
+```
+
+- `off` — reads work; hardware-changing requests are rejected.
+- `manual` — explicit REST actions can write hardware.
+- `dry-run` — actions are evaluated and returned, but no hardware write occurs.
+- `auto` — validated future planner actions may write hardware.
+
+The default is `dry-run`. The development Compose overlay intentionally forces
+`dry-run`; for a deliberate write test it can be overridden explicitly for the
+one command/container invocation.
+
+## SolaX configuration adapter
+
+The existing SolaX `ReadSetData` adapter remains available through REST and CLI.
+It exposes only indexes verified on the target inverter/firmware.
 
 Verified mapping:
 
@@ -36,89 +211,41 @@ Verified mapping:
 | 37 | forced charge end | high byte = minute, low byte = hour |
 | 38 | allowed discharge start | high byte = minute, low byte = hour |
 | 39 | allowed discharge end | high byte = minute, low byte = hour |
+| 116 | phase unbalanced | observed `0=disabled`, `1=enabled` |
 | 185 | HotStandby | observed `0=enabled`, `1=disabled` |
 
-The unusual HotStandby polarity is deliberate: it reflects the values verified
-on the target inverter rather than a generic boolean assumption.
-
-### Commands
-
-With the development stack running:
+CLI diagnostics are kept:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller get min_soc
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller get work_mode
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller get charge_from_grid
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller get hot_standby
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller get inverter_time
-```
-
-Read all verified configuration:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller config
-```
-
-or JSON:
-
-```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller config --json
-```
-
-Diagnostic raw `ReadSetData` dump:
-
-```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml run --rm controller raw
 ```
 
-No command in M0.5A writes inverter configuration.
+## Safety rules
 
-## Planned M0.5 write proof-of-concept
+- device-specific protocol details stay inside controller adapters
+- no raw register/index writes are exposed as public actions
+- actions are idempotent where possible
+- every write is read-before-write and read-back verified
+- unknown values fail closed rather than being guessed
+- HTTP/device timeouts are explicit
+- controller credentials are read only from environment variables
+- readers remain read-only
+- scheduling/rules remain outside the controller
 
-After the reads are verified against the real inverter, add controlled operations
-such as:
+## Next controller milestones
+
+Planned SolaX write actions remain:
 
 ```text
-set min_soc <percent>
-force_charge <target_soc>
+set_min_soc
+set_work_mode
+set_grid_charge
+start_force_charge
 stop_force_charge
 ```
 
-A write test must:
-
-1. read the current value,
-2. validate the requested value,
-3. write it,
-4. read it back,
-5. verify the result,
-6. restore the original value where appropriate,
-7. log the complete action.
-
-## Modes
-
-- `off` – no evaluation and no writes
-- `manual` – explicit user-requested actions only
-- `dry-run` – rules are evaluated and actions logged but not executed
-- `auto` – validated rules may perform hardware writes
-
-Default is **dry-run**. The development Compose overlay forces dry-run.
-
-## Safety requirements
-
-- input ranges must be validated before writing
-- no raw register writes may leak into rule code
-- actions should be idempotent where possible
-- all write attempts must be auditable
-- controller must be able to read back the resulting state
-- automatic operation must include hysteresis/cooldown where relevant
-- unknown enum values must be exposed as unknown rather than silently guessed
-
-## Future rule configuration
-
-Rules should eventually be configurable rather than hard-coded. Example concepts:
-
-- seasonal Min SOC
-- morning hot-water battery allowance
-- low-SOC recovery charge
-- periodic 100% charge when battery has not reached full SOC for a configurable period
-- weather/production forecast adjustments
+Each will follow the same read / validate / write / read-back / verify pattern
+already used for AZ Router BOOST.

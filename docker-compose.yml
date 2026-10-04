@@ -48,7 +48,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-
   solar_forecast_reader:
     build:
       context: ./solar_forecast_reader
@@ -107,10 +106,27 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-solax}:${POSTGRES_PASSWORD:-solax_dev_only}@datastore:5432/${POSTGRES_DB:-solaxmanager}
       SOLAX_URL: ${SOLAX_URL:-http://192.168.1.20}
       SOLAX_PASSWORD: ${SOLAX_PASSWORD:-}
+      SOLAX_HTTP_TIMEOUT_SECONDS: ${SOLAX_HTTP_TIMEOUT_SECONDS:-5}
+      AZROUTER_URL: ${AZROUTER_URL:-http://192.168.1.21}
+      AZROUTER_USERNAME: ${AZROUTER_USERNAME:-}
+      AZROUTER_PASSWORD: ${AZROUTER_PASSWORD:-}
+      AZROUTER_HTTP_TIMEOUT_SECONDS: ${AZROUTER_HTTP_TIMEOUT_SECONDS:-5}
       CONTROLLER_MODE: ${CONTROLLER_MODE:-dry-run}
+      CONTROLLER_HOST: 0.0.0.0
+      CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      CONTROLLER_LOG_LEVEL: ${CONTROLLER_LOG_LEVEL:-info}
     depends_on:
       datastore:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import os, urllib.request; p=os.getenv('CONTROLLER_PORT','8090'); urllib.request.urlopen(f'http://127.0.0.1:{p}/health', timeout=2).read()\"",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
   ui:
