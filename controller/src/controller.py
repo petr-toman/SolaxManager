@@ -271,6 +271,7 @@ class AzRouterClient:
         payload: dict[str, Any] | None = None,
         *,
         retry_auth: bool = True,
+        response_mode: str = "json",
     ) -> Any:
         url = f"{self.base_url}{path}"
         body = None if payload is None else json.dumps(payload).encode("utf-8")
@@ -278,8 +279,11 @@ class AzRouterClient:
 
         if body is not None:
             headers["Content-Type"] = "application/json"
+
+        # AZ Router returns the login token as the raw response body and expects
+        # it on write requests as a cookie named "token".
         if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
+            headers["Cookie"] = f"token={self.token}"
 
         request = urllib.request.Request(
             url,
@@ -290,7 +294,14 @@ class AzRouterClient:
 
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
-                return self._decode_document(response.read(), path)
+                raw = response.read()
+                if response_mode == "text":
+                    return raw.decode("utf-8", errors="strict").strip()
+                if response_mode != "json":
+                    raise AzRouterError(
+                        f"Unsupported AZ Router response mode {response_mode!r}"
+                    )
+                return self._decode_document(raw, path)
         except urllib.error.HTTPError as exc:
             if (
                 exc.code in (401, 403)
@@ -304,6 +315,7 @@ class AzRouterClient:
                     path,
                     payload,
                     retry_auth=False,
+                    response_mode=response_mode,
                 )
 
             try:
@@ -313,6 +325,10 @@ class AzRouterClient:
             suffix = f"; body={error_body}" if error_body else ""
             raise AzRouterError(
                 f"AZ Router {method} {path} failed with HTTP {exc.code}{suffix}"
+            ) from exc
+        except UnicodeDecodeError as exc:
+            raise AzRouterError(
+                f"AZ Router {path} returned non-UTF-8 text"
             ) from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             raise AzRouterError(
@@ -327,7 +343,7 @@ class AzRouterClient:
             # authentication. In that case let the actual write request decide.
             return
 
-        document = self._request(
+        token = self._request(
             "POST",
             self.LOGIN_PATH,
             {
@@ -337,25 +353,15 @@ class AzRouterClient:
                 }
             },
             retry_auth=False,
+            response_mode="text",
         )
 
-        self.token = None
-        token_sources: list[dict[str, Any]] = []
-        if isinstance(document, dict):
-            token_sources.append(document)
-            nested = document.get("data")
-            if isinstance(nested, dict):
-                token_sources.append(nested)
+        if not isinstance(token, str) or not token:
+            raise AzRouterError("AZ Router login returned an empty token")
 
-        for source in token_sources:
-            for key in ("token", "access_token", "accessToken", "jwt", "session"):
-                value = source.get(key)
-                if isinstance(value, str) and value:
-                    self.token = value
-                    return
-
-        # No token is not automatically an error: urllib's CookieJar may have
-        # received the authenticated session cookie from the login response.
+        # Verified on the target router: /api/v1/login returns the token itself
+        # as plain response text (despite Content-Type: application/json).
+        self.token = token
 
     def get_status(self) -> dict[str, Any]:
         document = self._request("GET", self.STATUS_PATH)
@@ -440,6 +446,7 @@ class AzRouterClient:
                     "boost": 1 if enabled else 0,
                 }
             },
+            response_mode="text",
         )
 
     def set_master_boost(self, enabled: bool) -> None:
@@ -448,6 +455,7 @@ class AzRouterClient:
             "POST",
             self.MASTER_BOOST_PATH,
             {"data": {"boost": 1 if enabled else 0}},
+            response_mode="text",
         )
 
 
