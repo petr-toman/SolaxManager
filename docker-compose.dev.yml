@@ -36,7 +36,6 @@ services:
   controller:
     environment:
       APP_ENV: development
-      CONTROLLER_MODE: dry-run
     ports:
       - "127.0.0.1:${CONTROLLER_DEV_PORT:-8090}:${CONTROLLER_PORT:-8090}"
     volumes:

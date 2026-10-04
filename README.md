@@ -16,7 +16,7 @@ Open-Meteo ────> solar_forecast_reader ─────┘
                                              ├──> reporter
                                              ├──> telemetry_api ──> ui
                                              │
-                                             └<── controller/planner ──> SolaX / AZ Router
+                                             └<── controller ──────────> SolaX / AZ Router
 ```
 
 ### Services
@@ -27,7 +27,8 @@ Open-Meteo ────> solar_forecast_reader ─────┘
 - **datastore** – PostgreSQL database shared through explicit schemas/tables.
 - **reporter** – calculates energy integrations and time aggregates, and performs retention cleanup.
 - **telemetry_api** – read-only HTTP API over normalized PostgreSQL telemetry. It is the data boundary used by the browser UI.
-- **controller** – controller/planner; reads/writes device configuration and later evaluates automation rules using telemetry, configuration history and forecasts. Starts in **dry-run** mode.
+- **controller** – hardware-control boundary; exposes validated device reads/actions and is the only service allowed to write SolaX or AZ Router configuration.
+- **planner** – future decision layer; will evaluate telemetry, history, forecasts and rules, then request actions from the controller.
 - **ui** – lightweight realtime status dashboard. It never talks directly to SolaX or PostgreSQL.
 
 ## Design rules
@@ -103,6 +104,8 @@ cp .env.example .env
 
 Never commit real device or database credentials.
 
+Compose project name is fixed to `solaxmanager`, so `make up`, `make dev` and `make prod` use the same named Docker volumes, including the PostgreSQL data volume.
+
 The project provides a Makefile for the common Docker workflows:
 
 ```bash
@@ -119,7 +122,7 @@ make ps
 make db
 ```
 
-Development uses the base Compose file plus `docker-compose.dev.yml`. Source directories are bind-mounted where practical, PostgreSQL is exposed to the development host, and the controller is forced into `dry-run` mode.
+Development uses the base Compose file plus `docker-compose.dev.yml`. Source directories are bind-mounted where practical and PostgreSQL/controller APIs are exposed only to the development host. Controller safety mode is always taken from `.env` via `CONTROLLER_MODE`; the dev overlay does not override it.
 
 The realtime dashboard is available at:
 
@@ -129,7 +132,7 @@ http://localhost:8088
 
 The browser calls `/api/realtime` on the UI origin; nginx proxies that request internally to `telemetry_api`. The API reads the newest normalized PostgreSQL row, so the UI never needs inverter credentials.
 
-Production uses the base Compose file plus `docker-compose.prod.yml`. Source code is taken from built images, PostgreSQL remains internal to the Docker network, and the controller still defaults to `dry-run` until it is explicitly enabled.
+Production uses the base Compose file plus `docker-compose.prod.yml`. Source code is taken from built images and PostgreSQL/controller APIs remain internal to the Docker network. Controller mode is taken from `.env` and defaults to `dry-run` when unset.
 
 Clean rebuilds are available through:
 

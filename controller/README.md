@@ -165,9 +165,9 @@ AZROUTER_USERNAME=
 AZROUTER_PASSWORD=
 ```
 
-Both must be configured together. The controller calls `/api/v1/login`, retains
-session cookies, and also uses a returned bearer token when the firmware exposes
-one.
+Both must be configured together. On the verified router firmware,
+`/api/v1/login` returns the authentication token directly as response text.
+The controller sends that token on write requests as the `token` cookie.
 
 If both credential fields are empty, the controller attempts the write without
 login. This supports installations where the local write API is unrestricted;
@@ -187,9 +187,9 @@ auto
 - `dry-run` — actions are evaluated and returned, but no hardware write occurs.
 - `auto` — validated future planner actions may write hardware.
 
-The default is `dry-run`. The development Compose overlay intentionally forces
-`dry-run`; for a deliberate write test it can be overridden explicitly for the
-one command/container invocation.
+The default is `dry-run` when `CONTROLLER_MODE` is unset. All Compose modes,
+including development, take `CONTROLLER_MODE` from `.env`; the development
+overlay does not override it.
 
 ## SolaX configuration adapter
 
